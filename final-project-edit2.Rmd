@@ -1,0 +1,592 @@
+---
+title: "The Effect of Political parties on Stock Market Performance"
+author: "brian rochford"
+output: 
+    html_document:
+      theme: journal
+      toc: true
+      toc_float: true
+      code_folding: hide 
+---
+                                    Introduction 
+
+  This paper will look to analyze the effect of the United States presidential electoral outcomes on financial markets. This idea that political business cycles cause fluctuations in financial markets has been a popular topic since the early 1900’s. This effect can either be caused by the incumbent president stimulating the economy in an attempt to get reelected or a new presidential candidate proposing economic policies that he or she would implement if elected.  Investors always look to evaluate current stock prices based on expectations for the future.
+
+  For my analysis I will be targeting the time period in which the newly elected president has been declared, up to the official inauguration day of that newly elected president. This three-month period is particularly important because most of the focus of investor outlook will likely be related to the newly elected president’s economic policy proposals. These policy alterations may be a new tax plan or new healthcare policies. A prime example occurred this year when Joe Biden won the election. With the proposal of a massive new stimulus bill the S&P 500 saw 14.33% gains during that three-month interval of election day to inauguration day. This gain was the largest for this particular time period for any first-term president since World War II (Ho, 2021).
+
+  The S&P 500 measures the value of the stocks that are the 500 largest corporations based on market capitalization listed on the New York Stock Exchange. It is a proxy for the performance of United States equity markets and the United States economy as a whole. The real S&P 500 prices over time will be used as my measurement indicator for stock market performance. My analysis will be utilizing a dynamic time series regression model with the real S&P 500 price as my dependent variable. To capture the effects of political cycles I will be using political dummy variables. One will represent the time period in which a republican has been elected and another for a democrat being elected president. I will be looking to determine which political party has a stronger effect on stock market performance. This isn’t as simple as just looking at S&P price changes during these time periods, as there are many other factors that can influence how much impact the president has on economic performance. If there is a recession or a war during these time periods, then the performance of stocks may be affected by these events more than the new president being elected. To attempt to mitigate this concern I will be including 2 control variables. One is the 10-year treasury rate, and the other is Moody's seasoned Baa corporate bond yield relative to yield on 10-Year Treasury Constant Maturity.
+  
+  Previous literature has analyzed overall stock market performance for each political party during their full terms and finds that the stock market performs better under a democratic president (Liston, Chong, Bayram, 2014).  My analysis will be measuring a three-month period not 4 years. Economic policies that democrats usually look to pursue benefit low-income and middle-income families. Democratic economic views believe that reducing income inequality is the optimal way to stimulate economic growth. Whereas republicans look to benefit businesses and investors by reducing taxes and government intervention. Democratic policy may prove to be better for long-term economic growth. My analysis is to determine which political party has a larger immediate effect, not long-term growth. I believe that investors will have a more immediate positive outlook when a republican is a coming into office because of their business-friendly approach. This should result in republican presidents causing larger immediate changes in stock market performance compared to democrats during the time frame of election day to inauguration day. I believe that the results of my models will prove this theory.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(wooldridge)
+library(stargazer)
+library(kableExtra)
+library(haven)
+library(ggplot2)
+library(dplyr)
+library(purrr)
+library(reshape2)
+library(growthcurver)
+library(lubridate)
+library(XLConnect)
+library(lme4)
+library(car)
+library(rJava)
+library(xlsx)
+library(readxl)
+library(ggplot2)
+library(zoo)
+library(lubridate)
+library(hydroTSM)
+```
+```{r}
+sp_monthly <- read_excel("/Users/brianrochford/Downloads/MacroTrends_Data_Download.xls")
+ten_yr_treasury_set <- read_excel("/Users/brianrochford/Downloads/Macrotrends-10-year-treasury-daily.xls")
+baa_10ym = read_excel("/Users/brianrochford/Downloads/BAA10YM.xls")
+my_political_data2 <- read_excel("/Users/brianrochford/Downloads/my political data.xls")
+```
+                                      Data Summary
+
+  I obtained S&P 500 monthly price data from macrotrends.net. This data set contains the S&P 500 nominal and real prices for every month since 1927. When it comes to stock market performance there is always a multitude of macroeconomic variables that may be affecting it at any given time. When trying to measure the causal relationship of a newly elected president being a Republican or Democrat and stock market performance, it's important to note that this is just one possible variable out of many that may be affecting the market during that time period. Figure 1 shown below represents the Real S&P500 monthly prices from 1962 to 2021. The blue lines in Figure 1 represents the inauguration of a newly elected president who is a democrat. The red lines in Figure 1 represents the inauguration of a newly elected president who is a republican.
+```{r}
+clean_sp500_set2 <- sp_monthly[-c(1:287),]
+colnames(clean_sp500_set2)[1] <- "Date"
+colnames(ten_yr_treasury_set)[1] <- "Date"
+colnames(ten_yr_treasury_set)[2] <- "TenYearTreasuryRate"
+colnames(clean_sp500_set2)[2] <- "SP500"
+colnames(clean_sp500_set2)[1] <- "Date"
+clean_sp500_set2 <- clean_sp500_set2[-c(1:120),]
+```
+```{r}
+ggplot(clean_sp500_set2, aes(x = Date, y = SP500)) + geom_line(alpha = .8) + labs(title = "Real S&p 500 Prices Over Time                                                             Figure 1", subtitle = "From 1962 to 2021, Blue lines represent a democrat becoming president, 
+red lines represent a republican becoming president. Starting with the 1965 Inauguration.", y = "Real SP500 prices") + geom_vline(xintercept = as.numeric(clean_sp500_set2$Date[40]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(clean_sp500_set2$Date[88]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(clean_sp500_set2$Date[136]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(clean_sp500_set2$Date[184]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(clean_sp500_set2$Date[232]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(clean_sp500_set2$Date[280]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(clean_sp500_set2$Date[328]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(clean_sp500_set2$Date[376]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(clean_sp500_set2$Date[424]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(clean_sp500_set2$Date[472]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(clean_sp500_set2$Date[520]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(clean_sp500_set2$Date[568]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(clean_sp500_set2$Date[616]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(clean_sp500_set2$Date[664]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(clean_sp500_set2$Date[712]), linetype = 4, color = "blue")
+```
+  
+  In order to capture the abnormal returns caused by a new president coming into power throughout history, control variables must be included in the regressions. Otherwise, omitted variable bias would result in my political variables capturing any market fluctuations, this will most likely result in my political dummy variables becoming biased up since financial variables usually have exponential growth over time. One of my control variables that I have decided to include is the 10-year treasury rate. I was able to obtain daily 10-year treasury rates since 1962. As you will see in Figure 2 below, generally when these long-term rates are increasing, it usually means the stock market is not performing well. In other words, the 10-year treasury rates and real S&P 500 prices have a moderately strong inverse relationship. This variable will capture some of the normal returns seen in S&P 500 price changes during the desired election time periods. Since I was only able to find a data set that had the daily prices, I aggregated these daily prices into an average price for the month to line up with my other variables observations. I also got this data set from macrotrends.net. Macrotrends.net is a research platform for long term investors. It contains a series of current and historical data sets on interest rates, exchange rates, precious metals, commodities, and oil prices. Figure 2 below displays a graphical representation of the changes in these 10-year treasury rates by month from 1962 to 2021. This graph also has vertical blue lines which represent when a democrat has been inaugurated as president and red lines to represent a republican elected. If you compare the points in Figure 2 where the treasury rates are very high, you can see in Figure 1 above that the S&P 500 price will usually be decreasing at that same point in time. Also, a side note: As you can see in current events, recently people have been concerned about the increase in ten-year treasury rates. They increased from 1.2% to 1.6% a few weeks ago, during this time there was a simultaneous dip in the market (specifically technology stocks crashed substantially). This is a prime example of the inverse relationship between the 10-year treasury rates and the S&P 500 performance.
+```{r}
+ggplot(ten_yr_treasury_set, aes(x = Date, y = TenYearTreasuryRate)) + geom_line(alpha = .8) + labs(title = "10 year Treasury Rates Over Time                                          Figure 2", subtitle = "From 1962 to 2021, Blue lines represent a democrat becoming president, 
+red lines represent a republican becoming president. Starting with the 1965 Inauguration.", y = "Ten year Treasury Rates") + geom_vline(xintercept = as.numeric(ten_yr_treasury_set$Date[769]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(ten_yr_treasury_set$Date[1769]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(ten_yr_treasury_set$Date[2766]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(ten_yr_treasury_set$Date[3761]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(ten_yr_treasury_set$Date[4756]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(ten_yr_treasury_set$Date[5751]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(ten_yr_treasury_set$Date[6746]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(ten_yr_treasury_set$Date[7741]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(ten_yr_treasury_set$Date[8736]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(ten_yr_treasury_set$Date[9731]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(ten_yr_treasury_set$Date[10726]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(ten_yr_treasury_set$Date[11721]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(ten_yr_treasury_set$Date[12716]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(ten_yr_treasury_set$Date[13711]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(ten_yr_treasury_set$Date[14706]), linetype = 4, color = "blue")
+```
+```{r}
+baa_10ym1962 = baa_10ym[-c(1:80),]
+colnames(baa_10ym1962)[2] = "baa"
+colnames(baa_10ym1962)[1] = "Date"
+```
+  My second control variable that is the Moody's seasoned Baa corporate bond yield relative to yield on ten-Year Treasury Constant Maturity. BAA is the rating of this corporate bond. Ratings are determined by their percentage chance of defaulting. Defaulting is when a bond becomes essentially worthless. The rating also takes into account a corporation’s debt structure at the time of the rating, and overall state of the economy. The corporate yields are unweighted averages of the more specific industrial and utility business sectors. These sectors comprise a significant portion of the companies represented in the S&P 500. To obtain the BAA corporate bond yield relative to the yield on 10-year constant maturity they just take the difference and that becomes the spread. This spread generally increases as the S&P 500 increases. Although, due to recent technological innovation and increasing complexity in the financial sector you see this relationship start to dwindle in the 1990's. This yield spread over time is shown graphically in Figure 3 below. If you compare the 4th election line (2nd democratic president) of the yield spread decreasing in Figure 3 below to that same point in time in Figure 1, you can see the Real S&P 500 price decreases in unison.
+```{r}
+ggplot(baa_10ym1962, aes(x = Date, y = baa)) + geom_line(alpha = .8) + labs(title = "Figure 3
+Moody's Seasoned Baa Corporate Bond Yield Relative to Yield on 10-Year Treasury 
+Constant Maturity Rates over time", subtitle = "From 1962 to 2021, Blue lines represent a democrat becoming president, 
+red lines represent a republican becoming president. Starting with the 1965 Inauguration.", y = "BAA corporate bond yield spread") + geom_vline(xintercept = as.numeric(baa_10ym1962$Date[38]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(baa_10ym1962$Date[86]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(baa_10ym1962$Date[134]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(baa_10ym1962$Date[182]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(baa_10ym1962$Date[230]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(baa_10ym1962$Date[278]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(baa_10ym1962$Date[326]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(baa_10ym1962$Date[374]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(baa_10ym1962$Date[422]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(baa_10ym1962$Date[470]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(baa_10ym1962$Date[518]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(baa_10ym1962$Date[566]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(baa_10ym1962$Date[614]), linetype = 4, color = "blue") + geom_vline(xintercept = as.numeric(baa_10ym1962$Date[662]), linetype = 4, color = "red") + geom_vline(xintercept = as.numeric(baa_10ym1962$Date[710]), linetype = 4, color = "blue")
+```
+```{r}
+date_set = clean_sp500_set2 %>% distinct(Date)
+clean_sp500_set2 = clean_sp500_set2 %>% mutate(
+  term1 = 0,
+  term2 = 0,
+  term3 = 0,
+  term4 = 0,
+  term5 = 0,
+  term6 = 0,
+  term7 = 0,
+  term8 = 0,
+  term9 = 0,
+  term10 = 0,
+  term11 = 0,
+  term12 = 0,
+  term13 = 0,
+  term14 = 0,
+)
+firstTerm = clean_sp500_set2 %>% filter(Date >= as.numeric(clean_sp500_set2$Date[40]) & Date <= as.numeric(clean_sp500_set2$Date[88])) %>% mutate(term1 = 1)
+secondTerm = clean_sp500_set2 %>% filter(Date >= as.numeric(clean_sp500_set2$Date[88]) & Date <= as.numeric(clean_sp500_set2$Date[136])) %>% mutate(term2 = 1)
+thirdTerm = clean_sp500_set2 %>% filter(Date >= as.numeric(clean_sp500_set2$Date[136]) & Date <= as.numeric(clean_sp500_set2$Date[184])) %>% mutate(term3 = 1)
+fourthTerm = clean_sp500_set2 %>% filter(Date >= as.numeric(clean_sp500_set2$Date[184]) & Date <= as.numeric(clean_sp500_set2$Date[232])) %>% mutate(term4 = 1)
+fifthTerm = clean_sp500_set2 %>% filter(Date >= as.numeric(clean_sp500_set2$Date[232]) & Date <= as.numeric(clean_sp500_set2$Date[280])) %>% mutate(term5 = 1)
+sixthTerm = clean_sp500_set2 %>% filter(Date >= as.numeric(clean_sp500_set2$Date[280]) & Date <= as.numeric(clean_sp500_set2$Date[328])) %>% mutate(term6 = 1)
+seventhTerm = clean_sp500_set2 %>% filter(Date >= as.numeric(clean_sp500_set2$Date[328]) & Date <= as.numeric(clean_sp500_set2$Date[376])) %>% mutate(term7 = 1)
+eigthTerm = clean_sp500_set2 %>% filter(Date >= as.numeric(clean_sp500_set2$Date[376]) & Date <= as.numeric(clean_sp500_set2$Date[424])) %>% mutate(term8 = 1)
+ninthTerm = clean_sp500_set2 %>% filter(Date >= as.numeric(clean_sp500_set2$Date[424]) & Date <= as.numeric(clean_sp500_set2$Date[472])) %>% mutate(term9 = 1)
+tenthTerm = clean_sp500_set2 %>% filter(Date >= as.numeric(clean_sp500_set2$Date[472]) & Date <= as.numeric(clean_sp500_set2$Date[520])) %>% mutate(term10 = 1)
+eleventhTerm = clean_sp500_set2 %>% filter(Date >= as.numeric(clean_sp500_set2$Date[520]) & Date <= as.numeric(clean_sp500_set2$Date[568])) %>% mutate(term11 = 1)
+twelthTerm = clean_sp500_set2 %>% filter(Date >= as.numeric(clean_sp500_set2$Date[568]) & Date <= as.numeric(clean_sp500_set2$Date[616])) %>% mutate(term12 = 1)
+thirteenthTerm = clean_sp500_set2 %>% filter(Date >= as.numeric(clean_sp500_set2$Date[616]) & Date <= as.numeric(clean_sp500_set2$Date[664])) %>% mutate(term13 = 1)
+fourteenthTerm = clean_sp500_set2 %>% filter(Date >= as.numeric(clean_sp500_set2$Date[664]) & Date <= as.numeric(clean_sp500_set2$Date[712])) %>% mutate(term14 = 1)
+new_spPrezTerms = firstTerm %>%
+  rbind(secondTerm) %>%
+  rbind(thirdTerm) %>%
+  rbind(fourthTerm) %>%
+  rbind(fifthTerm) %>%
+  rbind(sixthTerm) %>%
+  rbind(seventhTerm) %>%
+  rbind(eigthTerm) %>%
+  rbind(ninthTerm) %>%
+  rbind(tenthTerm) %>%
+  rbind(eleventhTerm) %>%
+  rbind(twelthTerm) %>%
+  rbind(thirteenthTerm) %>%
+  rbind(fourteenthTerm)
+```
+```{r}
+treasury_data = data.frame(ten_yr_treasury_set)
+zoo_treasury = zoo(treasury_data[, -1], treasury_data[, 1])
+daily_month_treasury = daily2monthly(zoo_treasury, FUN = mean, dates=1)
+daily_month_treasury2 = data.frame(daily_month_treasury)
+sp_prez_frame = data.frame(new_spPrezTerms)
+dfTreasury = as.data.frame(fortify.zoo(daily_month_treasury, name = "Date",))
+
+baa_frame = data.frame(baa_10ym1962)
+new_spPrezTerms = left_join(sp_prez_frame, baa_frame, by = "Date")
+```
+```{r}
+new_spPrezTerms4 = left_join(new_spPrezTerms, dfTreasury, by = "Date")
+```
+```{r}
+Zpoli_merge3_new = new_spPrezTerms4
+```
+When searching for political party data, I wasn't able to find a data set that just simply listed the correct desired dates of each election, inauguration, and party who won, so I created the data set using R. Due to limited availability of data for the 10-year treasury rates I started at the 1964 election when Lydon B. Johnson was elected president. To represent each president elects party affiliation, I created a binary categorical variable called "political party". Where 0 is categorized as the president elected in that year was republican, and 1 means the president elected in that year was a democrat. Figure 4 shows the percentage of terms that each party had as president during the duration of my data set. It starts with the 1965 inauguration and ends with the 2021 inauguration. 8 out of the 15 terms represented in my data were republican presidents, which is 53.33%. The other 7 out of 15 terms represents democratic presidents, which is 46.67%. This is shown graphically in Figure 4 below.
+```{r}
+my_political_data3 <- my_political_data2[-c(1:3),]
+colnames(my_political_data3)[4] <- "politicalParty"
+my_political_data3$politicalParty <- factor(my_political_data3$politicalParty, levels = c(0, 1), labels = c("Republican", "Democrat"))
+```
+```{r}
+my_political_data3 %>%
+  ggplot(aes(x=politicalParty, fill = politicalParty)) + geom_bar(aes(y = (..count..)/sum(..count..))) + scale_fill_manual(values = c("red", "blue"), name = "Political Party") + xlab("Political Party") + labs(title= "The Percentage of Each Poltical Parties Time in Office           Figure 4", subtitle = "From 1964-2021") + labs(y = "Percent") + scale_y_continuous(labels=scales::percent, limits = c(0,1))
+```
+```{r}
+colnames(new_spPrezTerms4)[19] = "DailyMonthTreasury"
+colnames(Zpoli_merge3_new)[19] = "DailyMonthTreasury"
+```
+```{r}
+  spGrowth2 = function(j = 1) {
+     Zpoli_merge3_new %>%
+    filter(term1 == j) %>%
+    summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth3 = function(k = 1) {
+    Zpoli_merge3_new %>%
+      filter(term2 == k) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth4 = function(l = 1) {
+    Zpoli_merge3_new %>%
+      filter(term3 == l) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth5 = function(m = 1) {
+    Zpoli_merge3_new %>%
+      filter(term4 == m) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth6 = function(n = 1) {
+    Zpoli_merge3_new %>%
+      filter(term5 == n) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth7 = function(o = 1) {
+    Zpoli_merge3_new %>%
+      filter(term6 == o) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth8 = function(p = 1) {
+    Zpoli_merge3_new %>%
+      filter(term7 == p) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth9 = function(q = 1) {
+    Zpoli_merge3_new %>%
+      filter(term8 == q) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth10 = function(r = 1) {
+    Zpoli_merge3_new %>%
+      filter(term9 == r) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth11 = function(s = 1) {
+    Zpoli_merge3_new %>%
+      filter(term10 == s) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth12 = function(t = 1) {
+    Zpoli_merge3_new %>%
+      filter(term11 == t) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth13 = function(u = 1) {
+    Zpoli_merge3_new %>%
+      filter(term12 == u) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth14 = function(v = 1) {
+    Zpoli_merge3_new %>%
+      filter(term13 == v) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth15 = function(w = 1) {
+    Zpoli_merge3_new %>%
+      filter(term14 == w) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+
+first_avg3 = spGrowth2(1)
+second_avg3 = spGrowth3(1)
+third_avg3 = spGrowth4(1)
+fourth_avg3 = spGrowth5(1)
+fith_avg3 = spGrowth6(1)
+sixth_avg3 = spGrowth7(1)
+seventh_avg3 = spGrowth8(1)
+eigth_avg3 = spGrowth9(1)
+ninth_avg3 = spGrowth10(1)
+tenth_avg3 = spGrowth11(1)
+eleventh_avg3 = spGrowth12(1)
+twelth_avg3 = spGrowth13(1)
+thirteenth_avg3 = spGrowth14(1)
+fourteenth_avg3 = spGrowth15(1)
+```
+  Table 1 below is a summary statistics table for the average real S&P 500 prices within each term, the standard deviation of the real S&P500 prices within each term, the average treasury rate for each term, the standard deviation of the treasury rate for each term, the average BAA corporate bond yield spread for each term, and the standard deviation of the BAA corporate bond yield spread for each term. Each presidential term time range represented below starts at the inauguration of a new president and ends when the following election ends. Each inauguration day takes place January 20th every four years. I have represented inauguration day as March 1st for my analysis due to the data for my variables used being observed monthly, each observation is the first day of every month. This is not an issue because the markets will still be adjusting to the new president who has recently come into office and reacting to any policies that they may be looking to pursue. Each election day is at the beginning of November, so this worked out with my monthly data observations being the first day of every month. If the term had a president in office that was democrat, that row in the table is blue. If the term had a president in office that was republican, that row in the table is red. As you can see in the table below there wasn't nearly as much stock market growth in the mid 1900s. The S&P 500 prices started rising dramatically in the 1990's, right around the early stages of exponential technological development and what preceded the Dot.com bubble. From 1989 to 1993 the average S&P500 price for that term was only 721.45. By the 1997-2001 term, the average S&P500 price was 1869.72 as you can see in Table 1 below.
+
+```{r}
+summ = rbind(first_avg3, second_avg3, third_avg3, fourth_avg3, fith_avg3, sixth_avg3, seventh_avg3, eigth_avg3, ninth_avg3, tenth_avg3, eleventh_avg3, twelth_avg3, thirteenth_avg3, fourteenth_avg3)
+```
+```{r}
+summ %>% add_column(Term = c("1965-1969", "1969-1973", "1973-1977", "1977-1981", "1981-1985", "1985-1989", "1989-1993", "1993-1997", "1997-2001", "2001-2005", "2005-2009", "2009-2013", "2013-2017", "2017-2021"), .before = "avgSP500") %>%
+  knitr::kable(col.names = c("Term", "Avg SP500 Price in each term", "Standard Deviation of SP500 Price in each term", "Average Treasury Rate in each term", "Standard Deviation of Treasury rate in each term", "Average BAA corporate bond yield spread in each term", "Standard Deviation of BAA corporate bond yield spread in each Term"), caption = "Summary Statistics For Each  Presidential Term,                                                  Table 1") %>%
+  kable_styling("striped", "hover", full_width=T) %>%
+  row_spec(1:14, bold = T, color = "black") %>%
+  row_spec(1, background = "blue") %>%
+  row_spec(2, background = "red") %>%
+  row_spec(3, background = "red") %>%
+  row_spec(4, background = "blue") %>%
+  row_spec(5, background = "red") %>%
+  row_spec(6, background = "red") %>%
+  row_spec(7, background = "red") %>%
+  row_spec(8, background = "blue") %>%
+  row_spec(9, background = "blue") %>%
+  row_spec(10, background = "red") %>%
+  row_spec(11, background = "red") %>%
+  row_spec(12, background = "blue") %>%
+  row_spec(13, background = "blue") %>%
+  row_spec(14, background = "red")
+```
+```{r}
+new_spPrezTerms11 = new_spPrezTerms4
+```
+```{r}
+Zpoli_merge3_electionToInaug2 = new_spPrezTerms11 %>% distinct(Date)
+new_spPrezTerms11 = new_spPrezTerms11 %>% mutate(
+  elecToInaug1 = 0,
+  elecToInaug2 = 0,
+  elecToInaug3 = 0,
+  elecToInaug4 = 0,
+  elecToInaug5 = 0,
+  elecToInaug6 = 0,
+  elecToInaug7 = 0,
+  elecToInaug8 = 0,
+  elecToInaug9 = 0,
+  elecToInaug10 = 0,
+  elecToInaug11 = 0,
+  elecToInaug12 = 0,
+  elecToInaug13 = 0,
+  elecToInaug14 = 0,
+  elecToInaug15 = 0,
+)
+electionToInaugfirst = new_spPrezTerms11 %>% filter(Date >= as.numeric(new_spPrezTerms11$Date[1]) & Date <= as.numeric(new_spPrezTerms11$Date[2])) %>% mutate(elecToInaug1 = 1)
+electionToInaugsecond = new_spPrezTerms11 %>% filter(Date >= as.numeric(new_spPrezTerms11$Date[46]) & Date < as.numeric(new_spPrezTerms11$Date[49])) %>% mutate(elecToInaug2 = 1)
+electionToInaugthird = new_spPrezTerms11 %>% filter(Date >= as.numeric(new_spPrezTerms11$Date[95]) & Date < as.numeric(new_spPrezTerms11$Date[98])) %>% mutate(elecToInaug3 = 1)
+electionToInaugfourth = new_spPrezTerms11 %>% filter(Date >= as.numeric(new_spPrezTerms11$Date[144]) & Date < as.numeric(new_spPrezTerms11$Date[147])) %>% mutate(elecToInaug4 = 1)
+electionToInaugfifth = new_spPrezTerms11 %>% filter(Date >= as.numeric(new_spPrezTerms11$Date[193]) & Date < as.numeric(new_spPrezTerms11$Date[196])) %>% mutate(elecToInaug5 = 1)
+electionToInaugsixth = new_spPrezTerms11 %>% filter(Date >= as.numeric(new_spPrezTerms11$Date[242]) & Date < as.numeric(new_spPrezTerms11$Date[245])) %>% mutate(elecToInaug6 = 1)
+electionToInaugseventh = new_spPrezTerms11 %>% filter(Date >= as.numeric(new_spPrezTerms11$Date[291]) & Date < as.numeric(new_spPrezTerms11$Date[294])) %>% mutate(elecToInaug7 = 1)
+electionToInaugeighth = new_spPrezTerms11 %>% filter(Date >= as.numeric(new_spPrezTerms11$Date[297]) & Date < as.numeric(new_spPrezTerms11$Date[300])) %>% mutate(elecToInaug8 = 1)
+electionToInaugninth = new_spPrezTerms11 %>% filter(Date >= as.numeric(new_spPrezTerms11$Date[346]) & Date < as.numeric(new_spPrezTerms11$Date[349])) %>% mutate(elecToInaug9 = 1)
+electionToInaugtenth = new_spPrezTerms11 %>% filter(Date >= as.numeric(new_spPrezTerms11$Date[395]) & Date < as.numeric(new_spPrezTerms11$Date[398])) %>% mutate(elecToInaug10 = 1)
+electionToInaugeleventh = new_spPrezTerms11 %>% filter(Date >= as.numeric(new_spPrezTerms11$Date[444]) & Date < as.numeric(new_spPrezTerms11$Date[447])) %>% mutate(elecToInaug11 = 1)
+electionToInaugtwelth = new_spPrezTerms11 %>% filter(Date >= as.numeric(new_spPrezTerms11$Date[493]) & Date < as.numeric(new_spPrezTerms11$Date[496])) %>% mutate(elecToInaug12 = 1)
+electionToInaugthirteenth = new_spPrezTerms11 %>% filter(Date >= as.numeric(new_spPrezTerms11$Date[542]) & Date < as.numeric(new_spPrezTerms11$Date[545])) %>% mutate(elecToInaug13 = 1)
+electionToInaugfourteenth = new_spPrezTerms11 %>% filter(Date >= as.numeric(new_spPrezTerms11$Date[591]) & Date < as.numeric(new_spPrezTerms11$Date[594])) %>% mutate(elecToInaug14 = 1)
+electionToInaugfifteenth = new_spPrezTerms11 %>% filter(Date >= as.numeric(new_spPrezTerms11$Date[640]) & Date < as.numeric(new_spPrezTerms11$Date[643])) %>% mutate(elecToInaug15 = 1)
+correct = electionToInaugfirst %>%
+  rbind(electionToInaugsecond) %>%
+  rbind(electionToInaugthird) %>%
+  rbind(electionToInaugfourth) %>%
+  rbind(electionToInaugfifth) %>%
+  rbind(electionToInaugsixth) %>%
+  rbind(electionToInaugseventh) %>%
+  rbind(electionToInaugeighth) %>%
+  rbind(electionToInaugninth) %>%
+  rbind(electionToInaugtenth) %>%
+  rbind(electionToInaugeleventh) %>%
+  rbind(electionToInaugtwelth) %>%
+  rbind(electionToInaugthirteenth) %>%
+  rbind(electionToInaugfourteenth) %>%
+  rbind(electionToInaugfifteenth)
+```
+```{r}
+ spGrowth2eC = function(j = 1) {
+     correct %>%
+    filter(elecToInaug1 == j) %>%
+    summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth3eC = function(k = 1) {
+    correct %>%
+      filter(elecToInaug2 == k) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth4eC = function(l = 1) {
+    correct %>%
+      filter(elecToInaug3 == l) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth5eC = function(m = 1) {
+    correct %>%
+      filter(elecToInaug4 == m) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth6eC = function(n = 1) {
+    correct %>%
+      filter(elecToInaug5 == n) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth7eC = function(o = 1) {
+    correct %>%
+      filter(elecToInaug6 == o) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth8eC = function(p = 1) {
+    correct %>%
+      filter(elecToInaug7 == p) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth9eC = function(q = 1) {
+    correct %>%
+      filter(elecToInaug8 == q) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth10eC = function(r = 1) {
+    correct %>%
+      filter(elecToInaug9 == r) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth11eC = function(s = 1) {
+    correct %>%
+      filter(elecToInaug10 == s) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth12eC = function(t = 1) {
+    correct %>%
+      filter(elecToInaug11 == t) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth13eC = function(u = 1) {
+    correct %>%
+      filter(elecToInaug12 == u) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth14eC = function(v = 1) {
+    correct %>%
+      filter(elecToInaug13 == v) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth15eC = function(w = 1) {
+    correct %>%
+      filter(elecToInaug14 == w) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+  spGrowth16eC = function(x = 1) {
+    correct %>%
+      filter(elecToInaug15 == x) %>%
+      summarise(avgSP500 = mean(SP500, na.rm = TRUE), stdDevSP500 = sd(SP500, na.rm = TRUE), avgTreasuryRate = mean(DailyMonthTreasury, na.rm = TRUE), stdDevTreasuryRate = sd(DailyMonthTreasury, na.rm = TRUE), avgBAASpread = mean(baa, na.rm = TRUE), stdDevBAASpread = sd(baa))
+  }
+
+first_avg3eC = spGrowth2eC(1)
+second_avg3eC = spGrowth3eC(1)
+third_avg3eC = spGrowth4eC(1)
+fourth_avg3eC = spGrowth5eC(1)
+fith_avg3eC = spGrowth6eC(1)
+sixth_avg3eC = spGrowth7eC(1)
+seventh_avg3eC = spGrowth8eC(1)
+eigth_avg3eC = spGrowth9eC(1)
+ninth_avg3eC = spGrowth10eC(1)
+tenth_avg3eC = spGrowth11eC(1)
+eleventh_avg3eC = spGrowth12eC(1)
+twelth_avg3eC = spGrowth13eC(1)
+thirteenth_avg3eC = spGrowth14eC(1)
+fourteenth_avg3eC = spGrowth15eC(1)
+fifteenth_avg3eC = spGrowth16eC(1)
+```
+```{r}
+summ2C = rbind(first_avg3eC, second_avg3eC, third_avg3eC, fourth_avg3eC, fith_avg3eC, sixth_avg3eC, seventh_avg3eC, eigth_avg3eC, ninth_avg3eC, tenth_avg3eC, eleventh_avg3eC, twelth_avg3eC, thirteenth_avg3eC, fourteenth_avg3eC, fifteenth_avg3eC)
+```
+  Table 2 below is also a summary statistics table with the same variable statistics. Although this table now specifically shows the time frames that are of particular interest for my research analysis. Each time interval represented below starts on election day in November when the next president is declared the winner of the election, until the inauguration of that newly elected president. As previously mentioned, due to the limitations with these historical financial data sets my variables are only observed at the first day of every month. Presidential inauguration day is January 20th, so I have technically included the first 11 days each new president was in office as well. If anything, this may allow for a more accurate interpretation of their influence on the stock market. It allows for these presidents to announce possible new policy changes, which subsequently will allow for the markets to react. If the date time frame for a row in table 2 below is blue, that means that the president who has just been elected and will be entering into the oval office soon is democratic. If the date time frame for a row in table 2 is red, that means that the president who has just been elected and will be entering into the oval office soon is republican. These months are technically months where the previous president still has power, but investors will already start adjusting their outlook in anticipation for that newly elected president coming into office. For example, the 14th row of table shows the time period in which Donald Trump was elected president up until his official inauguration (11/1/16 - 2/1/17). This row is colored red because that is the political party that will be implementing economic policy for the next 4 years. Barack Obama is a democrat who is still technically in power during this time, but investors are not anticipating democratic economic policy, they are always looking towards the future. These time periods are mainly influenced by the future president, not the president that has only 3 months left in office.
+```{r}
+summ2C %>% add_column(Term = c("11/1/64-2/1/65", "11/1/68-2/1/69", "11/1/72-2/1/73", "11/1/76-2/1/77", "11/1/80-2/1/81", "11/1/84-2/1/85", "11/1/88-2/1/89", "11/1/92-2/1/93", "11/1/96-2/1/97", "11/1/00-2/1/01", "11/1/04-2/1/05", "11/1/08-2/1/09", "11/1/12-2/1/13", "11/1/16-2/1/17", "11/1/20-2/1/21"), .before = "avgSP500") %>%
+  knitr::kable(col.names = c("Election to Inauguration Date Ranges (month/day/year)", "Average SP500 Price in each term", "Standard Deviation of SP500 Price in each term", "Average Treasury Rate in each term", "Standard Deviation of Treasury rate in each term", "Average BAA corporate bond yield spread in each term", "Standard Deviation of BAA corporate bond yield spread in each Term"), caption = "Summary Statistics For Each  Presidential Term,                                                  Table 2") %>%
+  kable_styling("striped", "hover", full_width=T) %>%
+  row_spec(1:15, bold = T, color = "black") %>%
+  row_spec(1, background = "blue") %>%
+  row_spec(2, background = "red") %>%
+  row_spec(3, background = "red") %>%
+  row_spec(4, background = "blue") %>%
+  row_spec(5, background = "red") %>%
+  row_spec(6, background = "red") %>%
+  row_spec(7, background = "red") %>%
+  row_spec(8, background = "blue") %>%
+  row_spec(9, background = "blue") %>%
+  row_spec(10, background = "red") %>%
+  row_spec(11, background = "red") %>%
+  row_spec(12, background = "blue") %>%
+  row_spec(13, background = "blue") %>%
+  row_spec(14, background = "red") %>%
+  row_spec(15, background = "blue")
+```
+```{r message=FALSE, warning=FALSE}
+library(plm)
+library(tseries)
+library(forecast)
+library(dynlm)
+library(scales)
+library(quantmod)
+library(urca)
+library(xts)
+library(zoo)
+library(wooldridge)
+library(lmtest)
+library(fUnitRoots)
+library(EnvStats)
+library(sandwich)
+library(skedastic)
+library(vars)
+```
+
+                                      Empirical Methodology
+```{r message=FALSE, warning=FALSE}
+Zz_df = read_excel("/Users/brianrochford/Downloads/Zpoli_merge3.xlsx")
+```
+```{r}
+Zz_df2 <- Zz_df %>%
+  separate(Date, into = c("year", "month", "day"), sep = "-") %>%
+  unite(date, year:month, sep = "-" )
+```
+```{r}
+df_ts2 <- ts(Zz_df2, start = c(1962, 1), frequency = 12)
+```
+
+  For my analysis I will be measuring the effects of the political environment during the period in which a new president is elected up until they are sworn into office on stock market returns. I will be estimating these returns by using dynamic time series models, this type of modeling is often referred to as an event study. My political variables are dummy variables for when this change is a democratic president and another dummy variable for when the change is a republican president. I will be using the Real S&P 500 prices as my measurement indicator for stock market returns in my analysis. It is also crucial to include control variables in my regressions so that my political variables aren't capturing normal business cycle fluctuations. 
+  
+  The reason I choose to use the real S&P500 historical prices as my measurement indicator for overall stock market performance is because it is composed of a wide variety of companies for many different major sectors of the economy. Some people may use the Dow Jones industrial average but that would limit the scope of measurement to only the 30 large blue-chip companies that are in it. Whereas the Standard & Poor 500 is a market-value-weighted index of 500 companies publicly traded. These companies are carefully chosen to represent vital industries that make up our economy. Before the 1950's it was less than 500 companies but that is beyond the scope of this analysis. It was in 1957 when it actually became 500 companies and has been expanding since. These companies are mostly in the industrial, utilities, financials, and transportation sectors. This broader spectrum of measurement across multiple sectors allows for more accurate estimations in regard to the overall market performance. Since financial data such as the S&P500 index is usually not stationary and because the S&P500 is known to have an exponential time trend I will be adjusting this variable to be logarithmic to control for this trend.
+  
+  To understand the implementation of my control variables one must first understand the relationship between them and the real S&P500 prices. The first control variable that I included is the 10-year treasury rates. These securities are backed by the U.S. government and are one of the safest investments a person can make. This bond is associated with signaling investors’ confidence in the stock market. When investor confidence is high, 10-year treasury rates fall. This is because people will look to make riskier investments with higher returns. As shown in table 3 below you can see there is a negative relationship between S&P 500 price changes and the changes of 10-year treasury rates over time. The coefficient for ten-year treasury rates is interpreted as every 1-point increase in the ten-year treasury rate results in a 17.42% decrease in the Real S&P 500 price. This may seem high, but the 10-year treasury rate only has a range of about 4 to 15 since 1960 and has been steadily decreasing since the 1990's for the most part. The only reason that the 10-year treasury rate got as high as 15.84% was because of the hyperinflation phenomena that look place in the early 1980’s. After this inflationary period the 10-year treasury rate saw a steady decline for the most part.  Due to this normally small interval of dispersion, any change in the rate is considered significant.
+```{r}
+regRelationship = lm(log(real) * 100 ~ daily_2_monthlyTreasury, data = Zz_df2, na.action = na.omit)
+regRelationship2 = lm(log(real) * 100 ~ BAA10YM, data = Zz_df2, na.action = na.omit)
+```
+  For my second control variable I have decided to include one that has a positive relationship with the Real S&P 500 prices to account for normal growth during periods of prosperity. As shown in table 3 below you can see this positive relationship in the simple univariate regression model results. This variable is technically called Moody's seasoned Baa corporate bond yield relative to yield on 10-Year treasury Constant maturity. It measures the yield on BAA rated corporate bonds relative to yield on the 10-year constant maturity rates. These corporate bonds are rated based on their percentage chance of defaulting. Defaulting is when a bond becomes essentially worthless. The rating also takes into account a corporation’s debt structure at the time of the rating, and overall state of the economy. When investor confidence is high, ten-year rates fall as investors look for investments with higher rates of return. This consequently causes the BAA yield spread to rise alongside stock prices for the most part.
+```{r results = 'asis'}
+stargazer(regRelationship, regRelationship2, type = "html", style = "aer", title = "Relationship between Log(S&P500) and Control variables,                                                              Table 3", dep.var.labels = "Log(S&P500)", covariate.labels = c("10YearTreasuryRates", "BAA corporate bond yield spread"))
+```
+```{r}
+reg_controls = dynlm((diff(log(real))) * 100 ~ (daily_2_monthlyTreasury) + (BAA10YM) + (electionToInaugRepub) + (electionToInaugDem), data = df_ts2)
+reg_noControls = dynlm(diff(log(real)) * 100 ~ electionToInaugDem + electionToInaugRepub, data = df_ts2)
+```
+```{r}
+Sp_onlyAll = df_ts2[, -c(5:9)]
+```
+```{r}
+df_test = unitrootTest(Sp_onlyAll[,4], lags = 1, type = c("nc", "c", "ct"), title = NULL, description = NULL)
+```
+  My regression model has real S&P 500 prices as the dependent variable. Since my data seems to be non-stationary, I have conducted a Dicky-Fuller test to determine if S&P 500 prices has a unit root. Unit root tests are tests for stationarity in a time series. A time series is said to be stationary if a time shift does not change the shape of the distribution. Shown below is my null and alternative hypothesis for the unit root test I conducted.
+
+$H_{0}$: $\theta$ = 0
+$H_{1}$: $\theta$ < 0
+
+  If |DF| > 2.86, then we can reject the null hypothesis that S&P500 prices has a unit root. The Dicky-Fuller test statistic shown above is 2.7298. This means that we fail to reject the null hypothesis that S&P 500 prices has a unit root. Since Real S&P 500 prices has a unit root that means if I were to use this as my dependent variable in my time series regression models, then any model that includes real S&P 500 prices will result in inconsistent estimates. To mitigate this unit root problem, I am going to take the first difference of Real SP500 prices and run the Dicky-Fuller test again to determine if the first difference of real S&P 500 prices has a unit root. If it does then I will take the second difference and so on until the real S&P 500 price no longer has a unit root.
+```{r}
+df_test_1stdiff = unitrootTest(diff(Sp_onlyAll[,4]), lags = 1, type = c("nc", "c", "ct"), title = NULL, description = NULL)
+```
+  The Dicky-Fuller test for the 1st difference of Real S&P 500 prices produces an overwhelmingly large test statistic of -20.8224. Since |-20.8224| is greater 2.86 we can now reject the null hypothesis that the first difference of S&P 500 has a unit root. Now it is known that the first difference of Real S&P 500 prices is stationary.
+
+My simplified model with the control variables omitted is represented as:
+
+$\bigtriangleup Log(Sp500)_{t} = \beta_{0}+\beta _{1}(Republican)_{t}+\beta _{2}(Democrat)_{t} +\varepsilon _{t}$
+
+where $\bigtriangleup Log(Sp500)_{t} = Log(Sp500_{t})-Log(Sp500_{t-1})$
+
+My model with the control variables included is represented as: 
+
+$\bigtriangleup Log(Sp500)_{t} = \beta_{0}+\beta _{1}(Republican)_{t}+\beta _{2}(Democrat)_{t}+\beta _{3}(10yearTreausryRates_{t})+\beta _{4}(BaaCorporateBondYieldRelativetoYieldonTenYearTreasuryConstant Maturity_{t})+\varepsilon _{t}$
+
+where $\bigtriangleup Log(Sp500)_{t} = Log(Sp500_{t})-Log(Sp500_{t-1})$
+```{r message=FALSE, warning=FALSE}
+serial_corrTest = serialCorrelationTest(reg_controls, test = "rank.von.Neumann", alternative = "two.sided", conf.level = 0.95)
+```
+  To ensure that the variables used in my models aren't serially correlated I run a serial correlation test for my model with control variables included. I conducted a Rank von Neumann test for the time series regression with my control variables. Shown below is my null and alternative hypothesis for the serial correlation test I conducted.
+
+$H_{0}: \rho = 0$
+$H_{1}: \rho \neq  0$
+
+  The test results show that there is serial correlation within the model since $\rho$ is not equal to 0. It is equal to .0468. Since serial correlation does exist according to this test that means that all of my standard errors are wrong.
+```{r}
+serial_corrTest2 = serialCorrelationTest(reg_noControls, test = "rank.von.Neumann", alternative = "two.sided", conf.level = 0.95)
+```
+  The Rank von Neumann Test for my time series regression with the control variables omitted also shows results that there is serial correlation within the model. $\rho$ is equal to .0487, which means that we reject the null and state that there is serial correlation. Since serial correlation does exist according to this test that means that all of my standard errors are also wrong for this model. There are a few ways to correct for serial correlation within my models. One way would be to use robust standard errors. This correction is best for large samples and should make my models estimates unbiased. My data set has monthly observations dating back to the 1960's, this should be a large enough sample to allow for the proper utilization of robust standard errors. 
+
+  Financial data is usually not stationary by definition, it is constantly moving. Although, the changes in series (differences) are often approximately stationary. Therefore, my 1st differenced Log(S&P 500) dependent variable should prove to be stationary. In contrast, my control variables can’t be differenced since they are interpreted as ratios or percentages. This should not be an issue, there can still be situations where non-stationary data produces consistent estimates. Even if my dependent variables and independent variables are not cointegrated their relationship still can be. In the case in which my variables relationships are stationary then my errors will be consistent as well. These robust standard errors will also correct for heteroskedasticity in my models if it exists.
+```{r}
+bpTest_control = bptest(reg_controls)
+```
+  To check if either or both of my models has heteroskedasticity I conducted a Breusch-Pagan Heteroskedasticity test. If the p-value produced from this test is greater than 0.05, I can reject the null hypothesis at a 95% confidence level. The null and alternative hypothesis for this test is as such.
+
+$H_{0}$:Homoskedasticity
+$H_{1}$:Heteroskedasticity is present
+
+
+  The p-value derived from this test of my model with control variables is 0.8223. Therefore, we reject the null hypothesis and conclude that heteroskedasticity is present in the model. Although there are some drawbacks to the Breusch Pagan test as it assumes the heteroskedasticity is a linear function of the independent variables. 
+```{r}
+bpTest_noControl = bptest(reg_noControls)
+```
+  I have also conducted a Breusch-Pagan test for my model that has the control variables omitted. The null and alternative hypothesis for this test is as such.
+
+$H_{0}$:Homoskedasticity
+$H_{1}$: Heteroskedasticity is present
+
+  This test produces a p-value of 0.964. Therefore, we reject the null hypothesis and confirm that heteroskedasticity is present.
+```{r}
+robust_stdErrors = sqrt(diag(vcovHC(reg_controls)))
+robust_stdErrors_noControls = sqrt(diag(vcovHC(reg_noControls)))
+```
+                                      Results
+                                      
+Table 4 below displays the results of my dynamic time series regression with the control variables included in column 1 and the model with the control variables omitted in column 2. Dummy Variables used in my time series models allows for isolation of these specific time periods in which the political cycle takes place. These binary explanatory variables are the key components for my event study. These political dummy variables represent the time from election day to inauguration, which is a 3 month interval that occurs every 4 years. Election to inauguration (democrat) is the time period in which the newly elected president is democrat, and election to inauguration (republican) is the time period in which the newly elected president is republican. Since the Standard & Poor 500 index added the 500 new stocks to it's index in 1957 the average annual returns has been 8%. When adjusted for inflation (in real terms) just like my model has done, the average annual return is around 7% since 1957. When divided by 12 months that is only an average of 0.58333% in returns a month. This means that the average returns for a 3 month interval such as one that I am using for my political dummy variables adds up to an average of 1.75% in returns. 
+  
+  As you can see in table 4 below the election to inauguration (republican) dummy variable is interpreted as a percentage difference in effects on S&P 500 returns during the period in which a republican is elected president up until his inauguration date compared to all other time periods that does not have an election. I have multiplied Log(S&P500) by 100 for easier interpretation of percentages. This allows for the coefficients to be interpreted as a percentage now. 
+  
+  The republican dummy coefficient in column 1 has a value of 0.732. This means that on average the effect of a republican president soon to be in power results in 0.732% higher returns to the S&P 500 compared to all other time periods besides the periods in which a democrat had just won an election. This effect is insignificant at every significance level. The democrat dummy coefficient in column 1 has a value of 0.546. This means that on average the effect of a democratic president soon to be in power results in 0.546% higher returns to the S&P 500 compared to all other time periods besides the periods in which a republican has just won an election. When using the comparison to other periods as a proxy to determine the difference in mean effects of a republican coming to power versus a democrat I subtract these two coefficients. Republicans coming into power has an effect that is 0.186% greater than when a democrat is coming into power. The ten year treasury rate coefficient is interpreted as: a point increase in the treasury rate causes the S&P 500 to decrease by 0.07% on average. The BAA corporate bond yield spread is interpreted as: a point increase in the spread causes the S&P 500 price to increase by 0.226%. These control variables are also not significant at any level.
+  
+  In column 2 with the control variables omitted the political party dummies coefficients change. The republican dummy is now 0.627% and the democratic dummy is 0.762%. This change does not imply much since the control variables that capture normal business cycle fluctuations are omitted. This variation between models could be because of several different events. It could be that some republicans coming into office faced a recession and since the control variables were omitted the political dummies captured that variation and associated it with a republican coming into office. The opposite could have possibly happened during the time periods when a democrat was coming into power. It may be that they were elected into office during periods of prosperity and economic stability.
+  
+  I have decided to also add two more models for my analysis of each political parties effect on stock market performance when first coming into office. In model 3, the republican political dummy variable is now comparing the 3 month intervals when a republican is elected and will soon be in power to all other time periods including the time periods in which a democrat has been elected and is coming into power. In model 4, I am showing the same interpretation but for democrats coming into power compared to all other time periods. These models yield similar results in comparison to my first model. Model 3 shows that the time period for which a democratic president has just been elected and is soon to be inaugurated results in 0.527% higher average returns to the S&P 500 compared to all other time periods. Model 4 shows that the time period for which a republican president has just been elected and is soon to be in power results in 0.720% higher average returns to the S&P 500 compared to all other time periods, including time periods that a democrat is coming into power. When comparing these coefficients from each model and subtracting to find the differences in effects, republicans coming into power has a 0.193% larger positive effect on S&P 500 growth compared to democrats on average. These findings are all insignificant but the coefficient values for my political dummy variables are consistent with my predictions. Investors will react more positively when they hear on the news that a republican has just been elected president compared to hearing a democrat has been elected.
+```{r}
+reg_dem = dynlm((diff(log(real))) * 100 ~ BAA10YM + daily_2_monthlyTreasury + electionToInaugDem, data = df_ts2)
+reg_repub = dynlm(diff(log(real)) * 100 ~ BAA10YM + daily_2_monthlyTreasury + electionToInaugRepub, data = df_ts2)
+rboust_stdErrors2R = sqrt(diag(vcovHC(reg_repub)))
+robust_stdErrors2 = sqrt(diag(vcovHC(reg_dem)))
+```
+```{r results = 'asis'}
+stargazer(reg_controls, reg_noControls, reg_dem, reg_repub, style = "aer", type = "html", omit.stat = c("f", "ser", "rsq"), se = list(robust_stdErrors, robust_stdErrors_noControls), title = "Dynamic Time series Model of Stock Market performance based on political parties, Table 4", column.labels = c("Controls included", "Controls Omitted", "Democrat only with controls", "Republican only with controls"), covariate.labels = c("10 year Treasury Rates", "BAA corporate bond yield spread", "election to inauguration (republican)", "election to inauguration (democrat)"), dep.var.labels = c("Diff(Log(SP500))", "Diff(Log(SP500))", "Diff(Log(SP500))", "Diff(Log(SP500))"))
+```
+                                      Conclusion
+                                      
+This paper utilizes econometric techniques to examine and quantify the impact political parties have on stock market returns. To measure the effects of the political cycle on investor outlook, I regressed the first difference of the logarithmic real S&P 500 prices on financial variables and political dummy variables for each party using time series modeling. My other financial variables (10-year treasury rates, BAA corporate bond yield spread) were used as controls to capture normal business cycle fluctuations. My political dummy variables attempted to capture the effects for this 3 month period that occurs every four years from each election to inauguration.
+  
+  Prior studies have analyzed similar trends but I did not find any that looked at this same specific time interval as my analysis did. Other literature has shown that stock market returns are higher under democratic presidents but they did not specifically analyze this 3 month period of the political cycle. Well-identified evidence on the effect of political outcomes on stock markets are still limited (Girardi, 2018). This shows that finding causal evidence of political change effecting stock markets is difficult.
+  
+  The results of my model did not find any significant effects of my political dummy variables on the S&P 500 price changes. The 10-year treasury rate control variable also shows no significant effects on the real S&P 500 price changes. The BAA corporate bond yield spread relative to 10-year treasury constant maturity did not show any significant effects either. The values of these coefficients are consistent with my predictions but can not be used as evidence to confirm my hypothesis due to there insignificance. With the political environment becoming more unstable as of recently I'm sure there will be an abundance of future literature looking to measure these circumstances. One possible expansion on this idea could be to analyze the effects of this political cycle time period and look at the causal effects on stock market performance when an election is close, compared to when the margin of victory is large for a republican, and also compared to the margin of victory is being large for a democrat.
+                                                    
+                                      References
+Ho, K. The Stock Market loves the idea of a Biden presidency. Quartz, (2021). https://qz.com/1960298/since-joe-bidens-election-the-sp-500-has-climbed-14-3-percent/ Liston, D., Chong, H., Bayram, S., The Impact of Political Variables on Stock Returns and Investor Sentiment. Journal of Business and Behavioral Sciences, Vol 26, No.1, (2014). https://www.researchgate.net/publication/262107482 
+Girardi, D. Political Shocks and Financial Markets: Regression Discontinuity Evidence from National Elections. UMASS Amherst Economics Working Papers, 245, (2018). https://scholarworks.umass.edu/econ_workingpaper/245 
