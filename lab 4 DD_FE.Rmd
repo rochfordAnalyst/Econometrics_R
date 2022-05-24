@@ -9,7 +9,7 @@ output:
       toc_float: true
       code_folding: hide 
 ---
-#I cant properly download csv format onto Rstudio with my mac for some reason, I even had trouble with the xls and xlsx formats but got those to work with a library package, the stargazer table for the summary statistics required for question 3 will not work in this format although I was able to get the <labelled><dbl> error fixed by changing the format to xls.
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
