@@ -1,0 +1,266 @@
+---
+title: "Lab 2"
+author: "Brian Rochford"
+date: "2/13/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(ggmap)
+library(usmap)
+library(haven)
+library(ggplot2)
+library(dplyr)
+
+```
+#organizing data on lab
+```{r}
+
+cepr_79_19_1_ <- read_dta("Downloads/cepr_79_19 (1).dta")
+cepr_79_19_1_ <- cepr_79_19_1_ %>%
+  mutate(degree=factor(educ, levels = c(1, 2, 3, 4, 5), labels = c("Less Than HS", "HS", "Some College", "College", "Advanced Degree")))
+cepr_79_19_1_$race<- factor(cepr_79_19_1_$wbho, levels = c("1", "2", "3", "4"), labels = c("White", "black", "hispanic", "other"))
+
+cepr_79_19_1_$state <- factor(cepr_79_19_1_$state, levels = c(63, 94,86,71,93,84,16,51,53,59,58,95,82,33,32,42,47,61,72,11,52,14,34,41,64,43,81,46,88,12, 22,85,21,56,44,31,73,92,23,15,57,45,62,74,87,13,54,91,55,35,83),
+labels = c("AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"))
+
+cepr_79_19_1_ <- cepr_79_19_1_ %>%
+  mutate(employed= case_when(lfstat==1 ~ 1,
+                             lfstat==2 | lfstat==3 ~ 0),
+         unemployed = case_when(lfstat==2 ~ 1,
+                                lfstat==1 | lfstat==3 ~ 0),
+         nilf =case_when(lfstat==3 ~1,
+                         lfstat==1|lfstat==2 ~ 0))
+```
+#regression model
+```{r}
+my_model <- lm(log(wage4+1)~degree+age+I(age^2)+female+race, data=cepr_79_19_1_, na.action = na.omit)
+summary(my_model)
+```
+#1 on lab
+```{r}
+library(scales)
+yearvector <- sort(unique(cepr_79_19_1_$year))
+gap <- c()
+for (i in yearvector) {
+  temp <- cepr_79_19_1_ %>%
+    filter(year == i)
+  reg <- lm(log(wage4+1)~degree+age+I(age^2)+female+race, data=temp)
+  gap <- c(gap, reg$coefficients["female"])
+  rm(temp)
+}
+gap <- data.frame(yearvector, gap)
+gap %>%
+  arrange(yearvector)
+```
+#1 on lab
+```{r}
+gender_wage_gap <- ggplot(gap, aes(yearvector, gap)) + geom_line()
+gender_wage_gap + labs(title = "Gender wage gap changes over time", subtitle = "The y-axis decimal values are interpretted as the percentage differences females get 
+in hourly wages compared to men,(-30% = females make 30% less than men when all else is equal)", x = "Years", y = "Gender wage gap") + scale_y_continuous(labels = percent)
+```
+
+
+
+
+
+#2 on lab
+```{r}
+library(scales)
+cepr_79_19_1_$race <- as.factor(cepr_79_19_1_$race)
+yearvector2 <- sort(unique(cepr_79_19_1_$year))
+
+racegap <- c()
+educationgap <- c()
+for (q in yearvector2) {
+  temp2 <- cepr_79_19_1_ %>%
+    filter(year == q)
+  reg_race <- lm(log(wage4+1)~degree+age+I(age^2)+female+race, data=temp2)
+  racegap <- c(racegap, reg_race$coefficients["raceblack"])
+  educationgap <- c(educationgap, (reg_race$coefficients["degreeCollege"] - reg_race$coefficients["degreeHS"]))
+  rm(temp2)
+}
+racegap <- data.frame(yearvector, racegap)
+racegap %>%
+  arrange(yearvector)
+             
+```
+```{r}
+racial_gap <- ggplot(racegap, aes(yearvector, racegap)) + geom_line()
+racial_gap + labs(title = "Racial wage gap changes between white and black workers over time", subtitle = "The y-axis decimal values can be interpretted as the percentage difference black workers 
+earn compared to white when all else is equal. (-13% = black workers make an hourly wage
+that is 13% less than white people ceteris paribus)", x = "Years", y = "Racial wage gap") + scale_y_continuous(labels = percent)
+ 
+```
+
+
+
+
+
+#3 on lab
+```{r}
+yearvector3 <- sort(unique(cepr_79_19_1_$year))
+educationgap <- c()
+for (k in yearvector3) {
+  temp3 <- cepr_79_19_1_ %>%
+    filter(year == k)
+  reg_race <- lm(log(wage4+1)~degree+age+I(age^2)+female+race, data=temp3)
+  educationgap <- c(educationgap, (reg_race$coefficients["degreeCollege"] - reg_race$coefficients["degreeHS"]))
+  rm(temp3)
+}
+educationgap <- data.frame(yearvector3, educationgap)
+educationgap %>%
+  arrange(yearvector3) %>%
+  tail( 31)
+
+```
+```{r}
+library(scales)
+education_wage_gap <- ggplot(educationgap, aes(yearvector3, educationgap)) + geom_line()
+education_wage_gap + labs(title = "Difference in wages between people with a high school diploma and 
+completing college over time", x = "Years", y = "Wage gap from varying education", subtitle = "The decimal values on the y-axis can be interpretted as the percentage difference people with a college degree compared to people with high school degrees,(.35 = people with a college degree made an hourly wage that was 35% greater than a person with a high school degree, all else equal)") + xlim(1989, 2019) + scale_y_continuous(labels = percent)
+
+
+```
+
+
+
+
+
+
+
+
+
+#4 on lab
+```{r}
+state_avg_wage2 <- function(s= "AL", q = 1979){
+  cepr_79_19_1_ %>%
+    filter(state==s) %>%
+    filter(year==q) %>%
+    summarise(avg_wage2 = mean(wage4, na.rm = TRUE), employment_rate = mean(employed / (employed + unemployed), na.rm = TRUE), unemployment_rate = mean(unemployed / (unemployed + employed), na.rm = TRUE), not_in_labor_force_rate = mean(nilf / (nilf + employed + unemployed), na.rm = TRUE) )
+  
+}
+state_avg_wage2("NY", 2010)
+```
+
+#5 on lab
+```{r}
+library(forcats)
+gender_count <- cepr_79_19_1_ %>%
+  mutate(gender = case_when(female==0 ~ "male", female==1 ~ "female")) %>%
+  filter(year == 1979) %>%
+  select(wage4, gender)
+```
+```{r}
+gender_wage_density_diff <- ggplot(gender_count, aes(x = wage4, fill = gender)) + geom_density() + xlim(0, 26) + scale_y_continuous(labels = percent)
+gender_wage_density_diff + labs(title = "Wage density differences for genders in 1979", x = "Hourly wages", y = "Density", subtitle = "This graphs shows what hourly wages the majority of people were earning for each gender, 
+high density percentage = majority")
+```
+
+
+
+
+
+
+
+
+
+#6 on lab
+```{r}
+gender_count2 <- cepr_79_19_1_ %>%
+  mutate(gender = case_when(female==0 ~ "male", female==1 ~ "female")) %>%
+  filter(year == 2019) %>%
+  select(wage4, gender)
+
+gender_wage_density_diff2 <- ggplot(gender_count2, aes(x = wage4, fill = gender)) + geom_density() + xlim(0, 90) + scale_y_continuous(labels = percent)
+gender_wage_density_diff2 + labs(title = "Wage density differences between gender in 2019", x = "Hourly wages", y = "Density", subtitle = "This graphs shows what hourly wages the majority of people were earning for each gender, 
+high density percentage = majority")
+```
+
+
+
+
+
+
+
+
+#7 on lab 
+```{r}
+state_level_avgwage_1979<- cepr_79_19_1_ %>%
+  filter(year==1979) %>%
+  group_by(state) %>%
+  summarise(mean_wage=mean(wage4, na.rm = TRUE))
+
+avg_wage_by_state <- plot_usmap(data = state_level_avgwage_1979, values = "mean_wage", color = "red") + 
+  scale_fill_continuous(name = "Average hourly wage rate") + 
+  theme(legend.position = "right")
+avg_wage_by_state + labs(title = "Map of the United States average hourly wage rates by state in 1979")
+```
+
+
+
+
+
+
+
+
+
+
+
+#8 on lab
+```{r}
+state_level_avgwage_2019<- cepr_79_19_1_ %>%
+  filter(year==2019) %>%
+  group_by(state) %>%
+  summarise(mean_wage2019=mean(wage4, na.rm = TRUE))
+
+avg_wage_by_state2 <- plot_usmap(data = state_level_avgwage_2019, values = "mean_wage2019", color = "orange") +
+  scale_fill_continuous(name = "Average hourly wage rate") + 
+  theme(legend.position = "right")
+avg_wage_by_state2 + labs(title = "Map of the United States average hourly wage rates by state in 2019")
+```
+
+
+
+
+
+
+
+
+
+
+#9 Summary of the changes in wages from 1979 to 2019 that are depicted in graphs and functions above.
+
+
+
+
+**Over the last 40 years the wage gap that women have been faced with has been on the decline since 1979. In 1979 the hourly wages a women made was about 30% less than men on average when all else is equal. As of recently the wage gap has been minimized to about 20%. In regard to racial wage gap displayed above, black people were making an hourly wage that was about 9% less than white people ceteris paribus, in 1979. That wage gap has not changed by much but its actually gotten larger. In 2019 the calculated wage gap between black people and white people grew to about 13%. The wage gap for people with a high school diploma compared to people with a college degree has widened since 1979. In 1979, people who earned a college degree made about 35% more than people who only had a high school degree with all else equal. Now as of recently that gap has grown by almost 10%, bringing that gap to around 43%. In regard to the density plot for gender wages in 1979, women were making mostly a little less than 5$ an hour. Where as men are seen with a more widely distributed density plot for varying wages. Men have a density percentage of nearly 10% of men making 10 dollars an hour. There is small percentages of men making up to 20 dollars an hour but women dont see any portion of there gender making that much. In 2019 the density plot has similar characteristics but the hourly wage changes where the majority of the population is seen earning, now it 25 dollars an hour. The majority of women make that or less than 25. Men have an even wider distribution with the plot skewed right. There are even a significant portion of men making 50-75 dollars an hour but women don't see significant proportions in those higher wage ranges at all still. In the United States map for 1979 average hourly wages you can see variation. States like Alaska, California, and New York are seen with higher average hourly wages, and states like Florida or the Carolina's are seen with lower hourly wages. In this same depiction for hourly wages by state but for 2019 is seen with some similarities. California and New York are still seen with average wages that are higher than most states. The lowest average hourly wages are now seen in Idaho and Mississippi.**
+
+
+
+#10 Do something neat, Here I created a function to find the average hourly wage based on a persons race and education level for any specific year. This function further exploits the wage gaps and using this function one can see that even if a person has the same education level there average outcomes for wages still vary.
+```{r}
+avg_wage_degree_race_year <- function(t = "Less Than HS", u = "White", k = 1979){
+  cepr_79_19_1_ %>%
+    filter(degree==t) %>%
+    filter(race==u) %>%
+    filter(year==k) %>%
+  summarise(wage_by_degree_race_year = mean(wage4, na.rm = TRUE))
+}
+White_advanced_degree <- avg_wage_degree_race_year("Advanced Degree", "White", 2019)
+black_advanced_degree <- avg_wage_degree_race_year("Advanced Degree", "black", 2019)
+White_advanced_degree
+black_advanced_degree
+White_lessThanHS <- avg_wage_degree_race_year("Less Than HS", "White", 2019)
+black_lessThanHS <- avg_wage_degree_race_year("Less Than HS", "black", 2019)
+White_lessThanHS
+black_lessThanHS
+```
