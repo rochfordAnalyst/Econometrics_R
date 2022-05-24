@@ -1,0 +1,96 @@
+---
+title: "Metrics HW7"
+author: "brian rochford"
+date: "3/19/2021"
+output: 
+ html_document:
+      theme: journal
+      toc: true
+      toc_float: true
+      code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(haven)
+library(usmap)
+library(tidyverse)
+library(stargazer)
+library(kableExtra)
+library(AER)
+library(wooldridge)
+library(plm)
+library(stargazer)
+library(haven)
+library(dplyr)
+library(purrr)
+```
+
+```{r}
+home_price<- read_dta("http://fmwww.bc.edu/ec-p/data/wooldridge/kielmc.dta")
+```
+**1**
+
+**A**
+
+$Y=\beta _{0}+\beta _{1}(Treat)_{i}+\beta _{2}(After)_{t}+\beta _{3}(Treat*After)_{i, t}+\epsilon _{i, t}$
+
+**The variable treat will represent the different restaurants that represent each counties restaurant revenues before the Covid shutdowns effect takes place . The variable labeled after will represent the different restaurant revneues from each county that is averaged after the covid shutdowns take place. The (Treat*After) interaction term will represent the treated group in the after period once the effects of the shutdown take place. This interaction will measure the difference in restaurant revenues of restaurants from various counties before covid shutdowns and after and will measure the difference of those differences in restaurant revenues for different counties in the state.**
+
+**B**
+$\beta _{0}$ is interpreted as the average restaurant revenue for restaurants still not effected by covd shutdowns in the before time period. $\beta _{1}$ is interpreted as the difference in restaurant revenues of restaurant from different counties before covid shutdowns, ie the treated and untreated groups. $\beta _{2}$ is interpreted as the difference in restaurant revenues between the restaurants with covid shutdowns already in place versus when the restaurants didnt have covid shutdowns, ie the difference in restaurant revenues between after and before in the untreated group. The interaction term represented by $\beta _{3}$ is interpreted as the difference in differences between treated and untreated before the covid shutdowns versus after.
+
+
+**C**
+
+This skeptic is wrong, this model represented above would not bias results just because counties with covid shutdowns has less revnue to start. This would not bias the results because the hypothetical issue this skeptic stated is a problem of the levels across the model. For this type of modeling with difference in differences, the starting variation between the different individuals or in this case restaurants will have no effects on the results that would lead to biasedness. But if this skeptic presented a hypothetical situation in which the time trends varied for different variables in the regression then that would be something that would bias the results. 
+
+
+**#2**
+
+**A**
+```{r}
+mean_sd_function = function(y=1978){
+home_price %>%
+  filter(year == y) %>%
+group_by(nbh) %>%
+  summarise(avg_home_price = mean(price, na.rm = TRUE), std_dev_home_price = sd(price, na.rm = TRUE))
+}
+mean_sd_function_78 = mean_sd_function(1978)
+
+```
+```{r}
+mean_sd_function_81 = mean_sd_function(1981)
+```
+#avg home price and standard deviation for 1978
+```{r}
+mean_sd_function(1978)
+```
+#avg home price and standard deviation for 1981
+```{r}
+mean_sd_function(1981)
+```
+
+
+```{r}
+model_diff = lm(price ~ factor(year) + factor(nbh) + factor(I(year * nbh)),
+data = home_price, na.action = na.omit)
+
+```
+**A**
+```{r results= 'asis'}
+stargazer(model_diff, style = "aer", type = "html", title = "Difference in differences in home prices across years and neighborhoods regression", covariate.labels = c("Year dummy-1981", "Neighborhood1", "Neighborhood2", "Neighborhood3", "Neighborhood4", "Neighborhood5", "Nieghborhood6", "I(year*neighborhood1)", "", "I(year*neighborhood2)", "", "I(year*nieghborhood3)", "", "I(year*neighborhood4)", "","I(year*neighborhood5)", "","I(year*neighborhood6)", ""))
+```
+
+**B) Interpretation of Coefficients**
+
+**The coefficient for the neighborhood dummy that is factored as neighborhood 1 is interpreted as the difference in average home prices compared to neighborhood 0 in 1981. This difference is shown in the regression table as the Nieghborhood1. The coefficient for the year dummy is interpreted as the difference in the average home prices for neighborhood 0 in 1981 compared to 1978. As you can see in the table with the averages for home prices of each neighborhood, the average home price for neighborhood 0 in 1978 was 81806.79 and in 1981 the average price increased to 132722.55. In the regression table above it is represented as $\beta_1=$ with a value of 50,915.760. The first interaction term is represented as $\beta_8=$. This value is interpreted as the difference in the differences of home prices for neighborhood 0 in 1978 to 1981 compared to the difference of home prices in neighborhood 1 from 1978 to 1981. Therefore, neighborhood 0 saw an increase in home prices from 1978 to 1981 that was 14,181$ more than the increase in home prices for neighborhood 1 from 1978 to 1981.**
+
+
+
+**C)**
+
+**Neighborhood 3 had the biggest price increase in home prices from 1978 to 1981. This can be easily recognized because the coefficient for the year neighborhood interaction term that compares it's average price increase to neighborhood 0 was the only interaction term with a negative value. This means that neighborhood 1 saw an increase in home prices from 1978 to 1981 that was 13,401 more than the increase in home prices for neighborhood 0 from 1978 to 1981. The actual increase in home prices for neighborhood 3 from 1978 to 1981 was 64,316.67. The neighborhood that saw the lowest increase in home prices from 1978 to 1981 was neighborhood 4. THe interaction term that shows the difference in difference comparison to neighborhood 0 is represented as $\beta_9$. This coefficient has a value that represents the biggest difference in the difference of home price increases from 1978 to 1981 compared to neighborhood 0. Neighborhood 0 saw an increase in home prices from 1978 to 1981 that was 27,773 more than the increase in home prices for neighborhood 4 from 1978 to 1981. Nieghborhood 4 only saw an increase in home prices from 1978 to 1981 of 23,142.36.**

@@ -1,0 +1,43 @@
+---
+title: "Metrics HW11"
+author: "brian rochford"
+date: "4/23/2021"
+output:
+    html_document:
+      toc: true
+      toc_float: true
+      code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+The paper I am analyzing is called “Did Good Corporate Governance Improve Bank Performance during the Financial Crisis?” by Emilia Pena and Sami Vähämaa
+
+**1.**
+
+The main question analyzed by the paper is: whether stronger corporate governance mechanisms for banks was associated with higher profitability and better stock performance during the financial crisis of 2008.
+
+**2.**
+
+They are using a panel data structure. The data that they use for their empirical methodology consist consists of the large, publicly traded U.S. commercial banks that are included in the S&P 1500 index. After eliminating the banks with insufficient financial and/or corporate governance information, they obtain a sample that compromises of 62 individual banks and 248 firm-year observations for the fiscal years 2005-2008.Their analysis requires data on the banks’ corporate governance structures, financial statements, and stock prices. The corporate governance data used came from Georgia State University. The income statement and balance sheet items are collected from Thomson Reuters Worldscope. The data on stock prices and market capitalizations of banks were obtained from CRSP. CRSP stands for Center for Research in Security Prices (CRSP). It is a provider of historical stock data. 
+
+
+**3.**
+
+The methodology they use is a fixed effects regression model and is represented below.
+
+$Perf_{j, t} = \alpha + \beta_{1}(GOV)_{j,t} + \beta_{2}(GOV_{j, t} \times YEAR_{j}^{2008}) + \beta_{3}(SIZE_{j, t}) + \beta_{4}(LEV)_{j, t} + \beta_{5}(LOANTA)_{j, t} + \beta_{6}(VOLA)_{j, t} + \beta_{7}(LOSS)_{j, t} + \sum_{y=2006}^{2008}\omega_{y}(YEAR)_{j}^{y} + \varepsilon_{j, t}$
+
+The dependent variable Perf represents performance indicating measures for each bank. These measures include profitability and market valuation. The GOV variable that is represented by $\beta_{1}$ is the Gov-score corporate governance index which is the measurement indicator for strength of governance. This index is based on 51 different firm-specific attributes that represent internal and external governance of the firm. The governance sectors considered are auditing, board of directors, charter/bylaws, director education, executive and director compensation, ownership, progressive practices, and state of incorporation.  Each of these is either coded as a 1 or 0 depending on whether the factor is at the minimally acceptable level or above it. The overall gov-score index is the sum of the value of the governance attributes, which takes values from 0 to 51. Higher vakues indicate stronger corporate governance.They utilize the variables SIZE, LEV, LOANTA, VOLA, LOSS as control variables to account for the potentially confounding effects of bank-specific characteristics such as size, leverage, and risk on profitability and market valuation. SIZE is measured by the logarithm of the bank's total assets.LEV is financial leverage measured as the ratio of total liabilities to total assets. LOANTA is the amount of lending activities, it is measured by the ratio of total lending to total assets. VOLA is stock return volatility, it is calculated by the annualized standard deviation of monthly stock returns. LOSS is a dummy variable which equals 1 for banks that report negative earnings during the fiscal year.
+The subscript j represents different banks and the subscript t represents time. The summation is used to represent dummy variables for different years (2006, 2007, 2008)
+
+**4.**
+
+One assumptions that must be met is the nonexistence of confounding effects that may exist if certain variables are omitted from the model. They count for this potential biasedness by utilizing the several control variables described above. Another assumption that they needed to mitigate is the possible heteroskedasticity across the clusters of observations for these similar banks. They corrected for this by using standard errors that are corrected for clustering at the bank level. They also used a robustness check to further test the validity of there findings. They did this by estimating truncated versions for model 2 with only GOV and BETA as independent variables, the estimates were still consistent with original estimates. They also winsorized the stock returns and control variables (BETA, SIZE, and MB) to ensure that the results were not skewed by a few extreme outliers. Winsorizing is when you limit extreme values in a data set to limit the effect of possible spurious outliers. 
+
+**5.**
+
+The independent variable GOV that is of particular interest and is the central focus of the research paper shows statistically significant effects at the 5% level in model 1 and 2. The value of the coefficient is .052 in model 1. This suggests that increased governance within a corporate bank will increase the performance of the bank (increased profits and market valuations). For each 1 point increase of the governance index results in .052 increase in the Performance index. The other variable in the model that is relevant to the question the paper looks to answer is the interaction term for the year 2008 dummy variable and the governance indicator. This coefficient is also positive and statistically significant. This shows the positive effect of good corporate governance on bank performance during the year the financial crisis came to fruition. Another coefficient to note is that the variable LEV which represents leverage of a bank, this shows a negative effect on a banks performance (or profitability). LOANTA also shows negative effects on a banks performance, this variable is the proportion of total loans to total assets for a bank.

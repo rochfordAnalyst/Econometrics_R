@@ -1,0 +1,70 @@
+---
+title: "Metrics HW10"
+author: "brian rochford"
+date: "4/14/2021"
+output:
+  html_document:
+      toc: true
+      toc_float: true
+      code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(wooldridge)
+library(plm)
+library(stargazer)
+library(haven)
+library(AER)
+library(kableExtra)
+library(censReg)
+library(survival)
+```
+
+**1.**
+
+The coefficient value on education for the linear probability model is interpreted as: for each additional year of education that a person gains increases there probability of being employed by 2.66 percentage points when all else is equal. The marginal effects of the logit and probit models have slightly different interpretations. The marginal effects of the logit model is interpreted as: for an average person each additional year of education increases the probability of being employed by 2.78 percentage points. The marginal effects of the probit model is interpreted as: for an average person each additional year of education increases the probability of being employed by 2.73 percentage points.
+
+
+**2.**
+
+The coefficients on education for the actual logit and probit models do not represent changes in the probability of the dependent variable. They represent changes in the latent variable. Logit and probit models can be both be derived from an underlying latent variable model. In latent variable models the direction of the effect of an explanatory variable is always the same.
+
+**3.**
+
+One difference between the linear model, the probit, and the logit is that the linear model is linear and the probit and logit models are nonlinear. Another difference is that the logit model has fatter tails, this means the logit model has more outliers compared to the probit model. Another big difference is that the probit and logit models have a restricted interval and the linear model does not. This interval is between 0 and 1, which means that the probability derived from probit and logit models can never be less than 0 % or greater than 100% (ie 0 or 1). The linear model does not have this restricted interval. The probit model is much more computationally difficult when comparing it the logit model computations. As mentioned in the questions above, the coefficients in probit and logit models have different interpretations compared to the linear model.
+
+
+**4.**
+
+When an OLS estimation is derived from this data set, it will treat censored data as uncensored, this will make the coefficients very different compared to a censored regression model.The OLS model will not consistently estimate the coefficients when using all observations unless there was no censoring in the data. If the OLS model were to only use the uncensored observations ($Wage_{i} > C_{i}$) where C represents the censor threshold, it would produce inconsistent estimators of the explanatory variable coefficients. Particularly for this example this issue with the data set having wages top coded at 50 dollars would causes the education coefficient to shrink toward 0 (ie it would bias down the coefficient). Whereas the censored regression model with wages topcoded at 50 dollars, this model can be defined without distributional assumptions. We are able to estimate the education coefficient by maximizing the likelihood of a correct prediction. We are able to interpret the education coefficient just as in a linear regression model under random sampling. Although, if any of the assumptions are not met for a censored regression model such as violating the no heteroskedasticty, or nonnormality in the residual for example, then the MLE's (maximum likelihood estimates) will be inconsistent. If all the assumptions were met, then it will produce a consistent estimate unlike OLS, and the value of the coeffecient for education will be larger than the OLS estimation.
+
+```{r}
+cepr_79_19_1_ <- read_dta("/Users/brianrochford/Downloads/cepr_79_19.dta")
+```
+```{r}
+cepr_2019_only = cepr_79_19_1_[-c(1:12720578),]
+```
+```{r}
+cepr_2019_copy = cepr_2019_only
+```
+```{r}
+cepr_2019_copy$wage4[cepr_2019_copy$wage4 > 70] = 70
+```
+```{r}
+reg1_ols = lm(wage4 ~ educ + age + I(age^2) + female, data = cepr_2019_only, na.action = na.omit)
+```
+```{r}
+reg_ols_limit = lm(wage4 ~ educ + age + I(age^2) + female, data = cepr_2019_copy, na.action = na.omit)
+```
+```{r}
+tobit = survreg(Surv(wage4, wage4 < 70, type = "right") ~ educ + age + I(age^2) + female, data = cepr_2019_only, dist="gaussian")
+```
+```{r results='asis'}
+stargazer(reg1_ols, reg_ols_limit, tobit, type = "html", dep.var.labels = c("Wage", "Wage", "Wage"), column.labels = c("OLS", "OLS w upper limit", "Tobit model"), covariate.labels = c("education", "age", "age squared", "female"), title = "Normal OLS regression, a OLS regression with new data that changed any wage higher than 70 to 70, and a Tobit model that censors the wages past the upper limit observations efficiently")
+```
+
+The first model is a normal OLS regression. This seems like a good model, the coefficients have statistical significance. The second model produces inconsistent estimates for the coefficients due to the manipulation that was done with replacing wages that were higher than 70 with 70. This caused the coeffecients to shrink toward 0 as you can see with the education coefficient, It is 6.078 in the normal OLS model and 6.209 in the tobit model, but in this model it went down to 5.828. This model is represented in column 2 and is the least preferred model. The normal OLS model without any upper limit has very similar values for the coefficients compared to the tobit model. For this particular case if we need to create a top coded upper limit for whatever reason then the tobit model is preferred. This is represented in column 3 in the table above

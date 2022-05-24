@@ -1,0 +1,113 @@
+---
+title: "metricsHW6"
+author: "brian rochford"
+date: "3/12/2021"
+output: 
+    html_document:
+      theme: journal
+      toc: true
+      toc_float: true
+      code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(wooldridge)
+library(stargazer)
+library(kableExtra)
+library(haven)
+library(ggplot2)
+library(dplyr)
+library(purrr)
+library(fastDummies)
+library(dummies)
+
+```
+
+
+```{r}
+cepr_79_19 <- read_dta("/Users/brianrochford/Downloads/cepr_79_19.dta")
+```
+
+#1
+```{r}
+year_set = cepr_79_19 %>% distinct(year)
+cepr_79_19 = cepr_79_19 %>% mutate(
+year1979 = 0,
+year1989 = 0,
+year1999 = 0,
+year2009 = 0,
+year2019 = 0,
+)
+y1979 = cepr_79_19 %>% filter(year == 1979) %>% mutate(year1979 = 1)
+y1989 = cepr_79_19 %>% filter(year == 1989) %>% mutate(year1989 = 1)
+y1999 = cepr_79_19 %>% filter(year == 1999) %>% mutate(year1999 = 1)
+y2009 = cepr_79_19 %>% filter(year == 2009) %>% mutate(year2009 = 1)
+y2019 = cepr_79_19 %>% filter(year == 2019) %>% mutate(year2019 = 1)
+new_data = y1979 %>%
+rbind(y1989) %>%
+rbind(y1999) %>%
+rbind(y2009) %>%
+rbind(y2019)
+model1 <- lm(log(wage4 + 1) ~ educ + age + I(age ** 2) + female +
+year1989 + year1999 + year2009 + year2019,
+data = new_data, na.action = na.omit)
+summary(model1)
+```
+
+#2 running regression seperately with the data for only 1979 and then 2019
+```{r}
+reg_function = function(y=1979){
+  q <-  cepr_79_19 %>%     
+    filter(year==y)
+  model_79_1 = lm(log(wage4+1)~educ+age+I(age^2)+female, data=cepr_79_19, na.action = na.omit)
+ return(q)
+
+ }
+reg_1979 = reg_function(1979)
+reg_set_1979 = lm(log(wage4+1)~educ+age+I(age^2)+female, data=reg_1979, na.action = na.omit)
+```
+```{r}
+reg_2019 = reg_function(2019)
+reg_set_2019 = lm(log(wage4+1)~educ+age+I(age^2)+female, data=reg_2019, na.action = na.omit)
+```
+#2 Explanation of constants:
+**The constant for the 1979 regression is interpreted as the percentage mean wage for a 0-year old person with no education who is male. There is no variation in year, the year is 1979. The constant for the 2019 regression is interpreted as the percentage mean wage for a 0-year old who’s male with no education. There is no variation in year is 2019.**
+
+```{r results= 'asis'}
+stargazer(reg_set_1979, reg_set_2019, style = "aer", type = "html", title = "Wage Regression by Year", covariate.labels = c("HS", "Some College", "College", "Advanced Degree", "Age", "Age squared", "Female"), dep.var.labels = c("Wage"), column.labels = c("1979", "2019"))
+```
+#3
+```{r}
+model3 = lm(log(wage4 + 1) ~ 0 + educ + age + I(age ** 2) + female + year1979 +
+year1989 + year1999 + year2009 + year2019,
+data = new_data, na.action = na.omit)
+summary(model3)
+```
+#4 Explanation
+
+**For this regression since I have suppressed the constant interpretations of the coefficients for the year dummies change. The coefficient for the 1979 dummy variable is interpreted as the 1979 average wage percent difference in returns for that year. If this equation had wage as the dependent variable and not log wage it would just be interpreted as the average wage for that year. The coefficient for the year dummy becomes the constant for that year. Which means that when everything else is equal to 0, that coefficient is the intercept now for the slope of the line of the regression graphically. The coefficients of these year dummy variables now accumulate from what would have been accounted for in the constant. This is the same for each year dummy. The 1989 year dummy coefficient is the constant for that year, interpreted as percentage difference in returns when everything else is 0. This is the same interpretation for each year.**
+
+#5
+```{r}
+model5 = lm(log(wage4 + 1) ~ 0 + educ + age + I(age ** 2) + female +
+I(educ * year1989) + I(educ * year1999) + I(educ * year2009) +
+I(educ * year2019),
+data = new_data, na.action = na.omit)
+summary(model5)
+```
+#5 Explanation
+**Each additional year of education in 2019 increases wages by .3416% more than each additional year of education did in 1979**
+```{r}
+summary(reg_set_1979)
+summary(reg_set_2019)
+```
+
+
+#6 t-test explanantion
+
+**As you can see in the models shown above again. The absolute value for the t-statistic for both of these variables in each year are greater than the standard errors. Therefore we know to overwhelmingly reject the null and confirm it is different for each year and we should not pool this data.**
+
