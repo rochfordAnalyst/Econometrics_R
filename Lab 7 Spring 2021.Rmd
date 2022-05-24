@@ -1,0 +1,177 @@
+---
+title: "Lab 5 Spring 2021"
+author: "Brian Rochford"
+date: "4/7/2021"
+output: 
+    html_document:
+      toc: true
+      toc_float: true
+      code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(plm)
+library(stargazer)
+library(haven)
+library(AER)
+library(kableExtra)
+```
+## IV Estimation
+
+### 1. 
+Is the murder rate in a state responsive to executions?
+Using the data from the Wooldridge book estimate $\Delta mrdrte_{st}=\delta_0+\beta_1\Delta exec_{st}+\beta_2 \Delta unemp_{st}+u_{st}$ using the lagged first difference of executions as an instrument. The variables necessary for the estimation are already included in the data set. Variables beginnning with c indicate change. Those with _1 at the end indicate lags. 
+
+```{r}
+murder<- read_dta("http://fmwww.bc.edu/ec-p/data/wooldridge/murder.dta")
+murder<- pdata.frame(murder, index=c("id", "year"))
+pdim(murder)
+```
+```{r}
+first_stage = lm(cexec ~ cexec_1 + cunem, data = murder)
+```
+```{r}
+xhat = predict(first_stage)
+murder = cbind(murder, xhat)
+```
+```{r}
+second_stage = lm(cmrdrte ~ xhat + cunem, data = murder)
+```
+```{r}
+iv2sls = ivreg(cmrdrte ~ cexec + cunem | cexec_1 + cunem, data = murder)
+```
+```{r results = 'asis'}
+stargazer(iv2sls, first_stage, second_stage, type = "html", dep.var.labels = c("IV 2SLS", "First stage", "Second stage"), column.labels = c("(change in Murder rate)  ", " (change in execution rate)  ", " (change in murder rate)"), title = "Instrumenting for change in execution rate with lagged first difference of execution rate", covariate.labels = c("change in execution rate", "Lagged first diff execution rate", "predicted change in execution rate", "change in unemployment"))
+```
+
+No the murder rate in a state is not responsive to executions according to the results from the second stage of this IV regression. The F-statistic from the results of the first stage regression model is 20.09 which means that if the lagged first difference of execution rates would be considered a significant instrument to be used for the change in execution rates variable which would make it a strong first stage. The issue here is that it may have not met exclusion restrictions. It is very difficult to find an instrument that is completely random and the lagged first difference of execution rates to use as an instrument for the change in execution rates does not seem random. The change in execution rate independent variable may also be correlated with the error term which would cause bias and produce inconsistent estimators of the coefficients.
+
+### 2. 
+The next data set is trying to estimate: $pira=\beta_0+\beta_1p401k+\beta_2ince+\beta_3inc^2+\beta_4age+\beta_5age^2+u$. 
+The purpose is to see if 401k's serve as a substitute for personal IRA (pira) accounts. Use elgibility for a 401k account (e401k) as an instrument for p401k. The first stage is a linear probability model.
+```{r}
+retirement<- read_dta("http://fmwww.bc.edu/ec-p/data/wooldridge/401ksubs.dta")
+```
+```{r}
+first_stage_prob = lm(p401k ~ e401k + age + agesq, data = retirement)
+```
+```{r}
+xhatProb = predict(first_stage_prob)
+sampleData = cbind(retirement, xhatProb)
+```
+```{r}
+second_stage_prob = lm(pira ~ xhatProb + inc + incsq + age + agesq, data = sampleData)
+```
+```{r results='asis'}
+stargazer(first_stage_prob, second_stage_prob, type = "html", dep.var.labels = c("First Stage LPM", "IV 2nd Stage"), covariate.labels = c("eligibility 401k", "predicted p401k", "income", "income squared", "age", "age squared"))
+```
+## RD Exercises
+### 3. 
+Using the NLSY data from 2000 and the fact that the smoking age is 18 in most places in the US. See if you can find a discontinuity on smoking behavior at 18 years old. 
+```{r}
+nlsy_data = read_dta("/Users/brianrochford/Downloads/nlsy97_rd.dta")
+```
+```{r}
+nlsy_2000 = as.data.frame((filter(nlsy_data, year==2000)))
+
+```
+```{r}
+nlsy_2000_M = as.data.frame(filter(nlsy_data, year==2000 & !is.na(recent_marijuana_)))
+```
+```{r}
+mSmoke = nlsy_2000_M %>% group_by(as.factor(age)) %>% summarise("Recent Marijuana Consumption"= mean(recent_marijuana_))
+kbl(mSmoke, col.names = c("Age", "Recent Marijuana Consumption")) %>%
+  kable_styling(full_width = F)
+```
+**Yes there appears to be a discontinuity in smoking at age 18.**
+### 4. 
+Try a reduced form disconinuity on health outcomes and smoking. Then (in a sperate estimation) use the RD for an IV regression of smoking on health. 
+```{r}
+data_update2 = subset(nlsy_data, !is.na(smoke_))
+```
+```{r}
+nlsy_data2 <- pdata.frame(data_update2, index=c("pubid", "year"))
+pdim(nlsy_data2)
+```
+```{r}
+reg = lm(health_ ~ s_age + age, data = nlsy_2000_M)
+```
+```{r}
+first_stage_s = lm(smoke_ ~ s_age + age, data = nlsy_data2)
+```
+```{r}
+xhatS = predict(first_stage_s)
+nlsy_data2 = cbind(nlsy_data2, xhatS)
+```
+```{r}
+iv_regS = lm(health_ ~ xhatS + age, data = nlsy_data2, na.action = na.omit)
+```
+```{r}
+iv2sls_smoke = ivreg(health_ ~ smoke_ + age | s_age + age, data = nlsy_data2)
+```
+```{r results= 'asis'}
+stargazer(reg, first_stage_s, iv_regS, iv2sls_smoke, type = "html", dep.var.labels = c("Reduced Form Discontinuity", "First Stage IV", "Second Stage IV", "IV2SLS"), column.labels = c("Health", "Smokes", "Health", "Health"), title = "Reduced Form Discontinuity on health outcomes and smoking, IV regression of smoking on health", covariate.labels = c("Smoking Age", "Predicted Smoking", "Smoking", "Age"))
+```
+
+### 5. 
+What are some possible reasons that our regression in the previous problem could fail the exclusion restriction. 
+
+**One possible reason could be because the instrument "s_age" could be correlated with the residual, this would mean the covariance of the instrument z and the residual is not equal to 0. This would cause the exclusion restriction to fail. Another reason is that satisfying the exclusion restrictions is a difficult task.The instrument must be completely random, and for this model it does not seem to meet the requirement of complete randomness regarding the relation of the endogenous variable and the instrument used for it.**
+
+### 6. 
+Alcohol is often discussed as a "gateway" drug. See if you can identify any discontinuity in drug use (marijuana and cocaine) at age 21. What do your results imply?
+
+```{r}
+nlsy_2003 = as.data.frame(filter(nlsy_data, year==2003 & !is.na(recent_marijuana_) & !is.na(recent_cocaine_)))
+```
+
+```{r}
+mDrink_coke = nlsy_2003 %>% group_by(as.factor(age)) %>% summarise("Recent marijuana consumption"= mean(recent_marijuana_), "Recent Cocaine Consumption"= mean(recent_cocaine_))
+kbl(mDrink_coke, col.names = c("Age", "Recent marijuana consumption", "Recent Cocaine Consumption")) %>%
+  kable_styling(full_width = F)
+```
+**The results shown above imply that there is no distinguishable discontinuity in marijuana or cocaine consumption at age 21.**
+### 7. 
+Again using the discontuity at 21 use days binge drinking for an RD IV on destroying property (ever_destroy_propertyD), arrested (recent_arrest), and fighting (ever_fightB_). (You will need to replace the NAs in binge drinking with 0 if the person did not recently drink.) What do your results imply?
+```{r}
+nlsy_binge = subset(nlsy_data, !is.na(days_binge_alcohol_))
+```
+```{r}
+nlsy_bingeP = pdata.frame(nlsy_binge, index=c("pubid", "year"))
+pdim(nlsy_bingeP)
+```
+```{r}
+property_reg1 = lm(days_binge_alcohol_ ~ d_age + age, data = nlsy_bingeP)
+xhatP = predict(property_reg1)
+nlsy_dataP = cbind(nlsy_binge, xhatP)
+```
+```{r}
+second_stageP = lm(ever_destroy_propertyD_ ~ xhatP + age, data = nlsy_dataP)
+```
+```{r}
+ivP = ivreg(ever_destroy_propertyD_ ~ days_binge_alcohol_ + age | d_age + age, data = nlsy_dataP)
+```
+```{r}
+arrest_reg2 = lm(recent_arrest_ ~ xhatP + age, data = nlsy_dataP)
+```
+```{r}
+ivA = ivreg(recent_arrest_ ~ days_binge_alcohol_ + age | d_age + age, data = nlsy_dataP)
+```
+```{r}
+fight_stage2 = lm(ever_fightB_ ~ xhatP + age, data = nlsy_dataP)
+```
+```{r}
+ivF = ivreg(ever_fightB_ ~ days_binge_alcohol_ + age | d_age + age, data = nlsy_dataP)
+```
+```{r results= 'asis'}
+stargazer(ivP, ivA, ivF, type = "html", dep.var.labels = c("RD IV Destroy Property", "RD IV Recent Arrest", "RD IV Ever Fight"), covariate.labels = c("Days Binge Drinking", "Age"), title = "RD IV on Destroying Property, Being Arrested, and Ever Fought using drinking age as the instrument for the endogenous variable binge drinking")
+```
+
+**My results imply that binge drinking actually makes a person less likely to have destroyed property or been in a fight. It does imply that binge drinking increasing the likelihood of getting arrested. These results don't make sense because you would think that binge drinking would increase the likelihood for all 3 occurences of bad behavior. These misleading results most likely stems from weak instruments that were used for days binge drinking (drinking age) which is why the standard errors are artificially low.**
