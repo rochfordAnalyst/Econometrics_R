@@ -1,0 +1,58 @@
+---
+title: "Multinomial Logits Spring 2021"
+author: "Brian Rochford"
+date: "4/22/2021"
+output: 
+    html_document:
+      toc: true
+      toc_float: true
+      code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(MASS)
+library(margins)
+library(haven)
+library(nnet)
+library(stargazer)
+library(kableExtra)
+```
+
+```{r}
+icecream_nlsy97 <- read_dta("/Users/brianrochford/Downloads/icecream_nlsy97.dta")
+
+icecream_nlsy97$icecream_1997 <- factor(icecream_nlsy97$icecream_1997, levels = c(5,1,2,3,4), labels = c("None of The Above", "Chocolate", "Vanilla", "Strawberry", "Butter Pecan"))
+
+
+icecream_nlsy97$census_region_1997 <- factor(icecream_nlsy97$census_region_1997, levels = c(1,2,3,4), labels = c("Northeast", "North Central", "South", "West"))
+
+icecream_nlsy97$urban_rural_1997 <- factor(icecream_nlsy97$urban_rural_1997, levels= c(0,1,2), labels = c("Unknown", "Urban", "Rural"))
+summary(icecream_nlsy97)
+```
+```{r}
+icecream_nlsy97 %>%
+  ggplot(aes(x=icecream_1997, fill="red", color= "black"))+
+  geom_bar()+
+  facet_wrap(~census_region_1997)+
+  theme(legend.position = "none")+
+  theme(axis.text.x = element_text(angle = 45))+
+  labs(x="Favorite Ice Cream", title = "Favorite Ice Cream by Region")
+```
+```{r}
+pick <- multinom(icecream_1997 ~ census_region_1997, data = icecream_nlsy97)
+```
+
+```{r}
+summary(pick)
+```
+```{r}
+
+```
+
