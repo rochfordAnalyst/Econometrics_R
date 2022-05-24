@@ -1,0 +1,126 @@
+---
+title: "Final project - Stock Market Performance based on Political Parties"
+author: "brian rochford"
+date: "3/10/2021"
+output: 
+    html_document:
+      theme: journal
+      toc: true
+      toc_float: true
+      code_folding: hide 
+---
+**Data Summary**
+
+I will be measuring the effects of stock market performance based on the political party of a newly elected president. My analysis will include fixed effects, differencing, and most likely the difference in the difference for some variables. My measurement indicator for stock market performance will be the S&P 500. This will be the dependent variable used in my regressions. I obtained the S&P 500 monthly price data from macrotrends.net. This data set contains the S&P 500 nominal and real prices for every month since 1927. When it comes to stock market performance there is always a multitude of macroeconomic variables that may be effecting stock market performance at any given time. When trying to measure the causal relationship of a newly elected president being a Republican or Democrat and stock market performance, it's important to note that this is just one possible variables out of many that may be effecting the market. In order to capture the abnormal returns caused by a new president coming into power throughout history, control variables must be included in the regressions. One of my control variables that I have decided to include is the 10 year treasury rates. I was only able to obtain daily 10 year treasury rates since 1962. . As you will see in the graphs below, generally when these long term rates are increasing, that usually means the stock market is not performing well and vice versa. This variable will capture some of the normal returns seen in S&P 500 price changes during the desired election time periods. Once all the normal fluctuations are captured with control variables all that will be left is fluctuations caused by abnormal changes during the time periods in question (presidential elections). Since I was only able to find a data set that had the daily prices I will have to clean that set before merging it with my other monthly priced variables. I also got this data set from macrotrends.net. Macrotrends.net is a research platform for long term investors. It contains a series of current and historical data sets on interest rates, exchange rates, precious metals, commodities, and oil prices.  Another control variable that will be used in my analysis is the S&P 500 dividend yield rates by month. Some people also may call it the dividend price ratio. It is measured by taking the value of the S&P 500 12 month dividend per share and dividing it by the price of the S&P 500. This is another variable that has an inverse relationship with the S&P500 and this relationship is even stronger then the 10 year treasury rate as you can see in the graph below. I obtained the data set for this ratio value throughout history from quandl.com. Quandl is website where one can find financial, economic, and alternative data. It's a marketplace for these kinds of data sets and are all delivered in modern formats that allow for easy manipulation of the data sets on IDE's such as R studio. As far as the political party goes, I wasn't able to find a data set that just simply listed the correct desired dates of each election, inauguration, and the one year point since inauguration so I decided to create my own data set on excel with these dates for each election. I have all of these dates listed for each election since 1952 when Dwight D. Eisenhower was elected. Due to limited availability of monthly data for the 10 year treasury rates I had to modify this analysis to start at the 1964 election when Lydon B. Johnson was elected president since the monthly 10 year treasury rate data starts in 1962. To represent each president elects party affiliation I created a binary categorical variable called "political party". Where 0 is categorized as the president elected in that year was republican, and 1 means the president elected in that year was a democrat. The reason I have decided to start economic variables at 1962 and not 1964 like how my presidential variables start is because I need to account for the stock market performance and state prior to the first election. If it's determined that the president is starting into a recession this can bias results and needs to be accounted for. By analyzing economic data from years prior, this allows the ability to alter what the norm growth is if it is a recession period. Also a side note: As you can see in current events, recently people have been concerned about the increase in 10 year treasury rates. They went from 1.2% to 1.6% a couple weeks ago which was parallel to a dip in the market (specifically technology stocks got hammered). This is a prime example of the inverse relationship between the 10 year treasury rates and the SP500 performance.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r messge=FALSE, warning=FALSE}
+library(tidyverse)
+library(wooldridge)
+library(stargazer)
+library(kableExtra)
+library(haven)
+library(ggplot2)
+library(dplyr)
+library(purrr)
+library(reshape2)
+library(growthcurver)
+library(lubridate)
+library(XLConnect)
+library(lme4)
+library(car)
+library(rJava)
+library(xlsx)
+library(readxl)
+library(ggplot2)
+```
+
+#readxl::
+```{r}
+
+sp_monthly <- read_excel("/Users/brianrochford/Downloads/MacroTrends_Data_Download.xls")
+```
+```{r}
+ten_yr_treasury_set <- read_excel("Downloads/Macrotrends-10-year-treasury-daily.xls")
+```
+```{r warning=FALSE}
+dividend_price_ratio2 <- read_excel("/Users/brianrochford/Downloads/dividend price ratio.xls")
+```
+```{r}
+my_political_data2 <- read_excel("/Users/brianrochford/Downloads/my political data.xls")
+```
+```{r}
+dividend_cleaner <- dividend_price_ratio2 [-c(1470:1814),]
+```
+```{r}
+dividend_cleaner3 <- dividend_cleaner %>%
+  arrange(Date)
+```
+```{r}
+dividend_1962 <- dividend_cleaner3[-c(1:668),]
+```
+
+#sp500 data from 1951 to today
+```{r}
+clean_sp500_set2 <- sp_monthly[-c(1:287),]
+```
+#removing unneeded years for 10 year treasury rate values
+```{r}
+clean_treasury_set2 <- ten_yr_treasury_set[-c(1:1745),]
+```
+#renaming column names to match each other for merging
+```{r}
+colnames(clean_sp500_set2)[1] <- "Date"
+```
+
+```{r}
+colnames(ten_yr_treasury_set)[1] <- "Date"
+colnames(ten_yr_treasury_set)[2] <- "tenYearTreasuryRate"
+```
+
+```{r}
+ggplot(ten_yr_treasury_set, aes(x = Date, y = tenYearTreasuryRate)) + geom_line(alpha = .8) + labs(title = "10 year Treasury Rates Over Time", subtitle = "From 1962 to 2021")
+```
+```{r}
+colnames(clean_sp500_set2)[2] <- "SP500"
+colnames(clean_sp500_set2)[1] <- "Date"
+clean_sp500_set2 <- clean_sp500_set2[-c(1:120),]
+```
+
+```{r}
+
+ggplot(clean_sp500_set2, aes(x = Date, y = SP500)) + geom_line(alpha = .8) + labs(title = "Real S&p 500 Prices Over Time", subtitle = "From 1962 to 2021")
+```
+```{r}
+colnames(dividend_1962)[2] <- "DividendPriceRatio"
+```
+
+```{r}
+ggplot(dividend_1962, aes(x = Date, y = DividendPriceRatio)) + geom_line(alpha = .8)
+```
+```{r}
+colnames(my_political_data2)[4] <- "politicalParty"
+my_political_data2 <- my_political_data2[-c(1:3),]
+```
+
+```{r}
+
+my_political_data2$politicalParty <- factor(my_political_data2$politicalParty, levels = c(0, 1), labels = c("Republican", "Democrat"))
+```
+```{r}
+my_political_data2 %>%
+  ggplot(aes(x=politicalParty, fill = politicalParty)) + geom_bar(aes(y = (..count..)/sum(..count..))) + scale_fill_manual(values = c("red", "blue")) + xlab("Political Party") + labs(title= "The Percentage of Each Poltical Parties Time in Office", subtitle = "From 1964-2021") + labs(y = "Percent") + scale_y_continuous(labels=scales::percent, limits = c(0,1))
+```
+
+# ```{r}
+# model_relationship <- lm(log(RealSP500price)~tenyrtreasuryrate, data=sp_500_treasury_merged, na.action = na.omit)
+# summary(model_relationship)
+# ```
+
+
+
+
+
+
+
