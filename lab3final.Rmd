@@ -1,0 +1,142 @@
+---
+title: "Lab 3"
+author: "Brian Rochofrd"
+date: "3/8/2021"
+output: 
+    html_document:
+      theme: journal
+      toc: true
+      toc_float: true
+      code_folding: hide
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(wooldridge)
+library(stargazer)
+library(kableExtra)
+library(haven)
+library(ggplot2)
+library(dplyr)
+library(purrr)
+```
+```{r}
+cepr_79_19_3_ <- read_dta("/Users/brianrochford/Downloads/cepr_79_19 (3).dta")
+```
+#not utilized in lab anymore, but I'm keeping it for future reference
+```{r}
+library(gtsummary)
+library(gtable)
+library(jtools)
+library(sandwich)
+```
+```{r}
+rand_initial_sample_2 <- read_dta("/Users/brianrochford/Downloads/Data/rand_initial_sample_2.dta")
+```
+# 1 
+Conduct t-tests on the difference in income1 (yearly income), age, educper (education), and blackhisp (a dummy for black or Hispanic) to see if the different insurance groups were randomly choosen. 
+```{r}
+rand_initial_sample_2$plantype <- factor(rand_initial_sample_2$plantype, levels = c("1", "2", "3", "4"), labels = c("Free", "Coinsurance", "Deductible", "Catastrophic"))
+types <- unique(rand_initial_sample_2$plantype)
+for (t in types) {
+  temp<- rand_initial_sample_2 %>%
+    filter(plantype==t)
+  assign(paste(t, "data", sep="_"), temp)
+}
+```
+```{r}
+t.test(`Free_data`$income1, `Catastrophic_data`$income1)
+```
+```{r}
+t.test(`Free_data`$age, `Catastrophic_data`$age)
+```
+```{r}
+t.test(`Free_data`$educper, `Catastrophic_data`$educper)
+```
+```{r}
+t.test(Free_data$blackhisp, Catastrophic_data$blackhisp)
+```
+# 2 
+Conduct t-tests on good health, bad health, cholest, has pain, and has worry. 
+```{r}
+t.test(`Free_data`$good_health, `Catastrophic_data`$good_health)
+```
+```{r}
+t.test(Free_data$bad_health, Catastrophic_data$bad_health)
+```
+```{r}
+t.test(Free_data$cholest, Catastrophic_data$cholest)
+```
+```{r}
+t.test(Free_data$has_pain, Catastrophic_data$has_pain)
+```
+```{r}
+t.test(Free_data$has_worry, Catastrophic_data$has_worry)
+```
+# 3. 
+
+#organizng data by factoring for regression
+```{r}
+cepr_79_19 <- cepr_79_19_3_
+  cepr_79_19$educ <- factor(cepr_79_19$educ, levels = c(1, 2, 3, 4, 5), labels = c("Less Than HS", "HS", "Some College", "College", "Advanced Degree"))
+cepr_79_19$race<- factor(cepr_79_19_3_$wbho, levels = c("1", "2", "3", "4"), labels = c("White", "black", "hispanic", "other"))
+cepr_79_19$female <- factor(cepr_79_19$female, levels = c(0,1), labels = c("male", "female"))
+```
+#function to regress data by year
+```{r}
+reg_function<- function(y=1979){
+  q <-  cepr_79_19 %>%     
+    filter(year==y)
+  model_79 <- lm(log(wage4+1)~educ+age+I(age^2)+female+race, data=cepr_79_19, na.action = na.omit)
+ return(q)
+
+ }
+reg_1979 <- reg_function(1979)
+```
+```{r}
+reg_set_1979 <- lm(log(wage4+1)~educ+age+I(age^2)+female+race, data=reg_1979, na.action = na.omit)
+```
+```{r}
+reg_1989 <- reg_function(1989)
+reg_set_1989 <- lm(log(wage4+1)~educ+age+I(age^2)+female+race, data=reg_1989, na.action = na.omit)
+```
+```{r}
+reg_1999 <- reg_function(1999)
+reg_set_1999 <-lm(log(wage4+1)~educ+age+I(age^2)+female+race, data=reg_1999, na.action = na.omit)
+```
+```{r}
+reg_2009 <- reg_function(2009)
+reg_set_2009 <- lm(log(wage4+1)~educ+age+I(age^2)+female+race, data=reg_2009, na.action = na.omit)
+```
+```{r}
+reg_2019 <- reg_function(2019)
+reg_set_2019 <- lm(log(wage4+1)~educ+age+I(age^2)+female+race, data=reg_2019, na.action = na.omit)
+```
+#formatting robust standard errors for each regression 
+```{r}
+library(lmtest)
+library(sandwich)
+library(zoo)
+cov1 <- vcovHC(reg_set_1979, type = "HC1")
+robust_se1 <- sqrt(diag(cov1))
+cov2 <- vcovHC(reg_set_1989, type = "HC1")
+robust_se2 <- sqrt(diag(cov2))
+cov3 <- vcovHC(reg_set_1999, type = "HC1")
+robust_se3 <- sqrt(diag(cov3))
+cov4 <- vcovHC(reg_set_2009, type = "HC1")
+robust_se4 <- sqrt(diag(cov4))
+cov5 <- vcovHC(reg_set_2019, type = "HC1")
+robust_se5 <- sqrt(diag(cov5))
+```
+#graphing format and labelling
+```{r, results= 'asis'}
+stargazer(reg_set_1979, reg_set_1989, reg_set_1999, reg_set_2009, reg_set_2019, style = "aer", type = "html", title = "Wage Regression by Year", covariate.labels = c("HS", "Some College", "College", "Advanced Degree", "Age", "Age squared", "Female", "Race:Black", "Race:Hispanic", "Race:Other"), dep.var.labels = c("Wage"), se = list(robust_se1, robust_se2, robust_se3, robust_se4, robust_se5), column.labels = c("1979", "1989", "1999", "2009", "2019"))
+```
+# 4. Summary of Education coefficients Interpretations
+
+
+
+In 1979 the dummy variable for a person with a high school education is represented as $\beta_1=$ `r reg_set_1979$coefficients["educHS"]` for the wage regression of 1979. This value shows the difference in wages compared to the reference dummy variable for education which is Less Than HS. Since the dependent variables is in logarithmic form these decimal values are interpreted as percentages. In 1979 people with a high school degree earned `r reg_set_1979$coefficients["educHS"] * 100` percent more than people with less than a High School degree on average when all else is equal. This disparity of wages between people with a High School degree and Less than 
+a High school degree increased in 1989. In 1989 people with a high school degree earned `r reg_set_1989$coefficients["educHS"] * 100` percent more than people with Less than a High School degree. In 1999 the gap between these two educational background categories increased even more. In 1999 people with a high school degree earned `r reg_set_1999$coefficients["educHS"] * 100` percent more than people with less than a high school degree. The gap once again incresed in 2009 people with a high school degree earned `r reg_set_2009$coefficients["educHS"] * 100` percent more than people with less than a high school degree on average when all else is equal. The gap recently got smalled in 2019 in which there is `r reg_set_2019$coefficients["educHS"] * 100` percent difference. The education dummy variable for people with some college education is represented as $\beta_2=$ `r reg_set_1979$coefficients["educSome College"]` for the wage regression of 1979. This means that people with a some college education earned `r reg_set_1979$coefficients["educSome College"] * 100` percent more than people with less than a high school degree on average when all else is equal. In 1989 this difference between the two increased, people with some college earned `r reg_set_1989$coefficients["educSome College"] * 100` percent more than people with less than a high school degree. In 1999 the gap increased to `r reg_set_1999$coefficients["educSome College"] * 100`. In 2009 the gap increased a little more to `r reg_set_2009$coefficients["educSome College"] * 100`. This wage gap between people with some college versus less than high school decreased in 2019, people with some college earned `r reg_set_2019$coefficients["educSome College"] * 100` percent more. As far as the education dummy variables for people with a College degree and for people with an advanced degree, similar trends are shown but with bigger starting gaps in 1979. The education dummy variable for people with an advanced degree is represented as $\beta_4=$ `r reg_set_1979$coefficients["educAdvanced Degree"]`. This means that in 1979 people with an advanced degree earned `r reg_set_1979$coefficients["educAdvanced Degree"] * 100` percent more than people with less than a High School degree on average when all else is equal. In 1989 the gap increased to `r reg_set_1989$coefficients["educAdvanced Degree"] * 100`. In 1999 the gap increased again, people with an Advanced degree earned `r reg_set_1999$coefficients["educAdvanced Degree"] * 100` percent more than people with less than a high school degree. In 2009 the gap increased further to `r reg_set_2009$coefficients["educAdvanced Degree"] * 100`. IN 2019 a similar trend is seen for all education categories. A slight decrease in the gap is seen. For $\beta_4$ the coefficient decreases slightly to `r reg_set_2019$coefficients["educAdvanced Degree"]`. This means that people with an advanced degree earned `r reg_set_2019$coefficients["educAdvanced Degree"] * 100` percent more than people with less than a high school degree. For people with a college degree a similar trend is seen except the $\beta_3$ coefficient value starts at `r reg_set_1979$coefficients["educCollege"]`.
