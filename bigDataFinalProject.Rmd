@@ -1,0 +1,183 @@
+---
+title: "BigDataFinal"
+author: "brian rochford"
+date: "5/2/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+library(haven)
+library(usmap)
+library(tidyverse)
+library(stargazer)
+library(kableExtra)
+library(AER)
+library(wooldridge)
+library(plm)
+library(stargazer)
+library(haven)
+library(labelled)
+library(lubridate)
+library(XLConnect)
+library(rJava)
+library(xlsx)
+library(readxl)
+library(ggplot2)
+library(gtsummary)
+```
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(wooldridge)
+library(stargazer)
+library(kableExtra)
+library(haven)
+library(ggplot2)
+library(dplyr)
+library(purrr)
+library(reshape2)
+library(growthcurver)
+library(lubridate)
+library(XLConnect)
+library(lme4)
+library(car)
+library(rJava)
+library(xlsx)
+library(readxl)
+library(ggplot2)
+library(zoo)
+library(lubridate)
+library(hydroTSM)
+```
+#```{r }
+
+#df <- read_csv("/Users/brianrochford/Downloads/fullyNormAndCleanBigData.csv")
+##df
+##```df <- read_csv("/Users/brianrochford/Downloads/BDOnlyNyc.csv")
+#first model ran
+
+
+```{r }
+
+df <- read_csv("/Users/brianrochford/Downloads/fullycleanedBigData.csv")
+df
+```
+##second model with 25-75 percentile and NA dups dropped
+#```{r }
+
+#df <- read_csv("/Users/brianrochford/Downloads/fullycleanedBigData.csv")
+#df
+#```
+
+```{r}
+year_set = df %>% distinct(year)
+df = df %>% mutate(
+year2017 = 0,
+year2018 = 0,
+year2019 = 0,
+year2020 = 0,
+year2021 = 0,
+)
+y2017 = df %>% filter(year == 2017) %>% mutate(year2017 = 1)
+y2018 = df %>% filter(year == 2018) %>% mutate(year2018 = 1)
+y2019 = df %>% filter(year == 2019) %>% mutate(year2019 = 1)
+y2020 = df %>% filter(year == 2020) %>% mutate(year2020 = 1)
+y2021 = df %>% filter(year == 2021) %>% mutate(year2021 = 1)
+new_data = y2017 %>%
+rbind(y2018) %>%
+rbind(y2019) %>%
+rbind(y2020) %>%
+rbind(y2021)
+```
+```{r}
+borough_set = new_data %>% distinct(borough)
+new_data = new_data %>% mutate(
+boroughManhattan = 0,
+boroughQueens = 0,
+boroughBrooklyn = 0,
+boroughBronx = 0,
+)
+by2017 = new_data %>% filter(borough =="MANHATTAN") %>% mutate(boroughManhattan = 1)
+by2018 = new_data %>% filter(borough == "QUEENS") %>% mutate(boroughQueens = 1)
+by2019 = new_data %>% filter(borough == "BROOKLYN") %>% mutate(boroughBrooklyn = 1)
+by2020 = new_data %>% filter(borough == "BRONX") %>% mutate(boroughBronx = 1)
+new_data = by2017 %>%
+rbind(by2018) %>%
+rbind(by2019) %>%
+rbind(by2020) 
+```
+
+
+
+```{r }
+model1 <- lm(TotalHourlyCompensatio ~ YearsEmployedAtAgency + year2018 + year2019 + year2020 + year2021 + boroughManhattan + boroughBrooklyn + boroughBronx,
+data = new_data, na.action = na.omit)
+summary(model1)
+
+```
+```{r }
+plot(model1, which = 4)
+
+```
+```{r}
+df_ts2 <- ts(df, start = c(2017, 1), frequency = 12)
+df_ts2
+```
+```{r message=FALSE, warning=FALSE}
+serial_corrTest = serialCorrelationTest(model1, test = "rank.von.Neumann", alternative = "two.sided", conf.level = 0.95)
+summary(serial_corrTest)
+```
+
+
+
+
+```{r results= 'asis'}
+stargazer(model1, style = "aer", type = "html", title = "Wage Regression by Year and Borough", covariate.labels = c("YearsEmployed", "year2018", "year2019", "year2020","year2021", "boroughManhattan","boroughBrooklyn", "boroughBronx"), dep.var.labels = c("HourlyWage"), column.labels = c("Region Year Dummies compared to Queens and 2017"))
+```
+
+```{r }
+model_copy <- lm(TotalHourlyCompensatio ~ YearsEmployedAtAgency + year2018 + year2019 + year2020 + year2021 + boroughManhattan + boroughBrooklyn + boroughBronx,
+data = new_data, na.action = na.omit)
+summary(model_copy)
+
+```
+
+```{r}
+model5 = lm(TotalHourlyCompensatio ~ 0 + YearsEmployedAtAgency + I(boroughManhattan * year2018) + I(boroughQueens * year2018) + I(boroughBrooklyn * year2018),
+data = new_data, na.action = na.omit)
+summary(model5)
+```
+
+```{r}
+model2019 = lm(TotalHourlyCompensatio ~ 0 + YearsEmployedAtAgency + I(boroughManhattan * year2019) + I(boroughQueens * year2019) + I(boroughBrooklyn * year2019),
+data = new_data, na.action = na.omit)
+summary(model2019)
+```
+```{r}
+model2020 = lm(TotalHourlyCompensatio ~ 0 + YearsEmployedAtAgency + I(boroughManhattan * year2020) + I(boroughQueens * year2020) + I(boroughBrooklyn * year2020),
+data = new_data, na.action = na.omit)
+summary(model2020)
+```
+
+```{r}
+model2021 = lm(TotalHourlyCompensatio ~ 0 + YearsEmployedAtAgency + I(boroughManhattan * year2021) + I(boroughQueens * year2021) + I(boroughBrooklyn * year2021),
+data = new_data, na.action = na.omit)
+summary(model2021)
+```
+
+
+
+```{r results= 'asis'}
+stargazer(model5, model2019, model2020, model2021, style = "aer", type = "html", title = "Wage Regression by Year and Borough", covariate.labels = c("YearsEmployed", "I(boroughManhattan * year2018)", "I(boroughQueens * year2018)","I(boroughBrooklyn * year2018)","I(boroughManhattan * year2019)", "I(boroughQueens * year2019)","I(boroughBrooklyn * year2019)","I(boroughManhattan * year2020)", "I(boroughQueens * year2020)","I(boroughBrooklyn * year2020)","I(boroughManhattan * year2021)", "I(boroughQueens * year2021)","I(boroughBrooklyn * year2021)"), dep.var.labels = c("HourlyWage"), column.labels = c("2018", "2019", "2020", "2021"))
+```
+
+
+
+
+
+
+
